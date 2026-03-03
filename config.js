@@ -109,7 +109,7 @@ module.exports = {
   PM_BLOCKER: settings.PM_BLOCKER || process.env.PM_BLOCKER || "false",
   ANTI_MENTION: settings.ANTI_MENTION || process.env.ANTI_MENTION || "false",
   ANTI_STATUS_MENTION: settings.ANTI_STATUS_MENTION || process.env.ANTI_STATUS_MENTION || "false",
-  ANTI_EDIT: settings.ANTI_EDIT || process.env.ANTI_EDIT || "false",
+  ANTI_EDIT: settings.ANTI_EDIT || process.env.ANTI_EDIT || "true",
   ANTIEDIT_PATH: settings.ANTIEDIT_PATH || process.env.ANTIEDIT_PATH || "inbox",
 
   // ===== BOT BEHAVIOR & APPEARANCE =====
