@@ -183,8 +183,8 @@ async (conn, mek, m, {
 
 // ============== .tag COMMAND (Admins + Creator) ==============
 cmd({
-  pattern: "tagall",
-  alias: ["tag"],
+  pattern: "tag",
+  alias: ["taggc"],
   react: "🔊",
   desc: "Tag all members (Admins & Creator) - Works with reply or direct message",
   category: "group",
