@@ -7,7 +7,7 @@ cmd({
     category: "owner",
     react: "📢",
     filename: __filename
-}, async (conn, mek, m, { from, text, reply, isCreator, isGroup, participants }) => {
+}, async (conn, mek, m, { from, text, reply, isCreator, isGroup }) => {
     // Check if user is owner
     if (!isCreator) return reply("❌ This command is only for owners!");
     
@@ -15,16 +15,22 @@ cmd({
     if (!isGroup) return reply("❌ This command can only be used in groups!");
     
     try {
-        const q = m.quoted ? m.quoted : m;
-        const mtype = Object.keys(q.message || {})[0];
-        const mimetype = (q.msg || q).mimetype || '';
+        // Get the quoted message
+        const quotedMsg = m.quoted;
+        
+        // Get mime type properly
+        const mimeType = quotedMsg ? (quotedMsg.msg || quotedMsg).mimetype || '' : '';
+        
+        // Get caption/text
         const caption = text?.trim() || "";
         
         // Check if there's content to send
-        if (!mtype && !caption && !m.quoted) {
+        if (!quotedMsg && !caption) {
             return reply(
                 `⚠️ Reply to media or provide text!\n\n` +
-                `Example: ${cmd.pattern} Hello everyone`
+                `Examples:\n` +
+                `• .gcstatus Hello everyone\n` +
+                `• Reply to an image with: .gcstatus`
             );
         }
         
@@ -34,57 +40,83 @@ cmd({
         // Get all group members for mention
         const groupMetadata = await conn.groupMetadata(from);
         const participants = groupMetadata.participants;
-        
-        // Create mention object with all members
-        const mentionAll = { 
-            mentions: participants.map(p => p.id) 
-        };
+        const mentionedJid = participants.map(p => p.id);
         
         let messageContent = {};
         
         // If there's quoted media
-        if (m.quoted) {
-            const buffer = await m.quoted.download();
-            if (!buffer) throw new Error("Failed to download media");
+        if (quotedMsg) {
+            // Download media
+            const mediaBuffer = await quotedMsg.download();
+            if (!mediaBuffer) throw new Error("Failed to download media");
             
             // Add status context with mentions
             const contextInfo = {
                 isGroupStatus: true,
-                mentionedJid: participants.map(p => p.id) // All members mentioned
+                mentionedJid: mentionedJid
             };
             
-            // Handle different media types
-            switch (mtype) {
-                case "imageMessage":
+            // Handle different media types based on mimeType
+            if (mimeType.startsWith('image/')) {
+                // Image message
+                messageContent = {
+                    image: mediaBuffer,
+                    caption: caption || "",
+                    mimetype: mimeType,
+                    contextInfo: contextInfo
+                };
+            } 
+            else if (mimeType.startsWith('video/')) {
+                // Video message
+                messageContent = {
+                    video: mediaBuffer,
+                    caption: caption || "",
+                    mimetype: mimeType,
+                    contextInfo: contextInfo
+                };
+            } 
+            else if (mimeType.startsWith('audio/')) {
+                // Check if it's a voice note
+                const isPTT = quotedMsg.message?.audioMessage?.ptt || false;
+                
+                messageContent = {
+                    audio: mediaBuffer,
+                    mimetype: isPTT ? 'audio/ogg; codecs=opus' : 'audio/mp4',
+                    ptt: isPTT,
+                    contextInfo: contextInfo
+                };
+            }
+            else {
+                // Try to detect by message type as fallback
+                const msgType = Object.keys(quotedMsg.message || {})[0];
+                
+                if (msgType === 'imageMessage') {
                     messageContent = {
-                        image: buffer,
+                        image: mediaBuffer,
                         caption: caption || "",
-                        mimetype: mimetype || "image/jpeg",
+                        mimetype: 'image/jpeg',
                         contextInfo: contextInfo
                     };
-                    break;
-                    
-                case "videoMessage":
+                }
+                else if (msgType === 'videoMessage') {
                     messageContent = {
-                        video: buffer,
+                        video: mediaBuffer,
                         caption: caption || "",
-                        mimetype: mimetype || "video/mp4",
+                        mimetype: 'video/mp4',
                         contextInfo: contextInfo
                     };
-                    break;
-                    
-                case "audioMessage":
-                case "pttMessage":
+                }
+                else if (msgType === 'audioMessage' || msgType === 'pttMessage') {
                     messageContent = {
-                        audio: buffer,
-                        mimetype: "audio/mp4",
-                        ptt: mtype === "pttMessage",
+                        audio: mediaBuffer,
+                        mimetype: msgType === 'pttMessage' ? 'audio/ogg; codecs=opus' : 'audio/mp4',
+                        ptt: msgType === 'pttMessage',
                         contextInfo: contextInfo
                     };
-                    break;
-                    
-                default:
-                    return reply("❌ Unsupported media type!");
+                }
+                else {
+                    return reply("❌ Unsupported media type! Please reply to an image, video, or audio file.");
+                }
             }
         } 
         // If only text
@@ -93,17 +125,15 @@ cmd({
                 text: caption,
                 contextInfo: {
                     isGroupStatus: true,
-                    mentionedJid: participants.map(p => p.id) // All members mentioned
+                    mentionedJid: mentionedJid
                 }
             };
-        } else {
-            return reply("❌ No content to send!");
         }
         
         // Send the status with mentions
         await conn.sendMessage(from, messageContent, { quoted: mek });
         
-        // Success reaction
+        // Success reaction only - no mention count message
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
         
     } catch (error) {
