@@ -1,12 +1,14 @@
 const { cmd } = require('../command');
+const converter = require('../lib/converter'); // Add for audio conversion
 
+// ============== .tag COMMAND (Admins + Creator) ==============
 cmd({
-  pattern: "hidetag",
-  alias: ["tag", "taghide", "h"],  
+  pattern: "tag",
+  alias: ["tagmembers"],
   react: "🔊",
-  desc: "Tag all members - Creator (new message) | Admins (reply to command)",
+  desc: "Tag all members (Admins & Creator) - Replies to command message",
   category: "group",
-  use: '.hidetag Hello or reply to media',
+  use: '.tag [reply to message]',
   filename: __filename
 },
 async (conn, mek, m, {
@@ -15,9 +17,147 @@ async (conn, mek, m, {
 }) => {
   try {
     if (!isGroup) return reply("❌ This command can only be used in groups.");
-    if (!isAdmins && !isCreator) return reply("❌ Only group admins or creator can use this command.");
+    if (!isAdmins && !isCreator) return reply("❌ Only group admins can use this command.");
 
-    // Check if there's content to send
+    // Check if there's a quoted message
+    if (!m.quoted) {
+      return reply("❌ Please reply to a message to tag all members.");
+    }
+
+    const quotedMsg = m.quoted;
+    const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
+    const caption = quotedMsg.text || q || "";
+    
+    // Send loading reaction
+    await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+    
+    // Get all group members for mention
+    const groupMetadata = await conn.groupMetadata(from);
+    const participants = groupMetadata.participants;
+    const mentionedJid = participants.map(p => p.id);
+    
+    let messageContent = {};
+
+    // If it's a text message
+    if (!mimeType) {
+      messageContent = {
+        text: caption || "📢 Tag all members",
+        mentions: mentionedJid
+      };
+    }
+    // Handle media messages
+    else if (mimeType.startsWith('image/')) {
+      const buffer = await quotedMsg.download();
+      if (!buffer) throw new Error("Failed to download image");
+      
+      messageContent = {
+        image: buffer,
+        caption: caption || "",
+        mimetype: mimeType,
+        mentions: mentionedJid
+      };
+    }
+    else if (mimeType.startsWith('video/')) {
+      const buffer = await quotedMsg.download();
+      if (!buffer) throw new Error("Failed to download video");
+      
+      const isGif = quotedMsg.message?.videoMessage?.gifPlayback || false;
+      
+      messageContent = {
+        video: buffer,
+        caption: caption || "",
+        gifPlayback: isGif,
+        mimetype: mimeType,
+        mentions: mentionedJid
+      };
+    }
+    else if (mimeType.startsWith('audio/')) {
+      const buffer = await quotedMsg.download();
+      if (!buffer) throw new Error("Failed to download audio");
+      
+      const isPTT = quotedMsg.message?.audioMessage?.ptt || false;
+      
+      // Convert audio using converter (like status command)
+      let audioToSend = buffer;
+      let audioMime = 'audio/mp4';
+      
+      if (isPTT) {
+        // Convert to proper voice note format
+        audioToSend = await converter.toPTT(buffer, 'mp3');
+        audioMime = 'audio/ogg; codecs=opus';
+      }
+      
+      messageContent = {
+        audio: audioToSend,
+        mimetype: audioMime,
+        ptt: isPTT,
+        mentions: mentionedJid
+      };
+    }
+    else if (mimeType.includes('sticker')) {
+      const buffer = await quotedMsg.download();
+      if (!buffer) throw new Error("Failed to download sticker");
+      
+      messageContent = {
+        sticker: buffer,
+        mentions: mentionedJid
+      };
+    }
+    else if (mimeType.includes('document')) {
+      const buffer = await quotedMsg.download();
+      if (!buffer) throw new Error("Failed to download document");
+      
+      const fileName = quotedMsg.message?.documentMessage?.fileName || "document";
+      const docMime = quotedMsg.message?.documentMessage?.mimetype || "application/octet-stream";
+      
+      messageContent = {
+        document: buffer,
+        mimetype: docMime,
+        fileName: fileName,
+        caption: caption || "",
+        mentions: mentionedJid
+      };
+    }
+    else {
+      // Fallback to text
+      messageContent = {
+        text: caption || "📢 Tag all members",
+        mentions: mentionedJid
+      };
+    }
+
+    // Send as REPLY to command message
+    await conn.sendMessage(from, messageContent, { quoted: mek });
+    
+    // Success reaction
+    await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+
+  } catch (e) {
+    console.error("Tag Error:", e);
+    reply(`❌ Error: ${e.message}`);
+    await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+  }
+});
+
+// ============== .h / .hidetag COMMAND (Creator Only) ==============
+cmd({
+  pattern: "hidetag",
+  alias: ["h"],
+  react: "🔇",
+  desc: "Hidden tag with custom message (Creator only) - Sends new message",
+  category: "owner",
+  use: '.h Hello everyone',
+  filename: __filename
+},
+async (conn, mek, m, {
+  from, q, isGroup, isCreator,
+  participants, reply
+}) => {
+  try {
+    if (!isGroup) return reply("❌ This command can only be used in groups.");
+    if (!isCreator) return reply("❌ Only the bot creator can use this command.");
+
+    // Check if there's text or quoted message
     if (!q && !m.quoted) {
       return reply("❌ Please provide a message or reply to media.");
     }
@@ -25,107 +165,105 @@ async (conn, mek, m, {
     // Send loading reaction
     await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
     
-    // Create mention object with all participants
-    const mentionAll = { mentions: participants.map(u => u.id) };
+    // Get all group members for mention
+    const groupMetadata = await conn.groupMetadata(from);
+    const participants = groupMetadata.participants;
+    const mentionedJid = participants.map(p => p.id);
     
-    // Decide whether to quote the command message or not
-    // Creator: Send as NEW message (no quoted)
-    // Admin: Send as REPLY to command (with quoted)
-    const quotedOption = isCreator ? null : { quoted: mek };
+    let messageContent = {};
 
-    // If there's a quoted message (reply to media/text)
+    // If there's a quoted message (media)
     if (m.quoted) {
       const quotedMsg = m.quoted;
       const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
-      // If user provided text with command, use that as caption
-      const caption = q || "";
+      const caption = q || quotedMsg.text || "";
       
-      // If it's a text message (no media)
+      // If it's a text message
       if (!mimeType) {
-        const textToSend = caption || quotedMsg.text || "📢 Tag all members";
-        return await conn.sendMessage(from, {
-          text: textToSend,
-          ...mentionAll
-        }, quotedOption);
+        messageContent = {
+          text: caption || "📢 Hidden tag",
+          mentions: mentionedJid
+        };
       }
-
       // Handle media messages
-      try {
+      else if (mimeType.startsWith('image/')) {
         const buffer = await quotedMsg.download();
-        if (!buffer) return reply("❌ Failed to download the quoted media.");
-
-        let content;
+        if (!buffer) throw new Error("Failed to download image");
         
-        // Image
-        if (mimeType.startsWith('image/')) {
-          content = { 
-            image: buffer, 
-            caption: caption || quotedMsg.text || "📷 Image", 
-            mimetype: mimeType,
-            ...mentionAll 
-          };
+        messageContent = {
+          image: buffer,
+          caption: caption || "",
+          mimetype: mimeType,
+          mentions: mentionedJid
+        };
+      }
+      else if (mimeType.startsWith('video/')) {
+        const buffer = await quotedMsg.download();
+        if (!buffer) throw new Error("Failed to download video");
+        
+        messageContent = {
+          video: buffer,
+          caption: caption || "",
+          mimetype: mimeType,
+          mentions: mentionedJid
+        };
+      }
+      else if (mimeType.startsWith('audio/')) {
+        const buffer = await quotedMsg.download();
+        if (!buffer) throw new Error("Failed to download audio");
+        
+        const isPTT = quotedMsg.message?.audioMessage?.ptt || false;
+        
+        // Convert audio using converter (like status command)
+        let audioToSend = buffer;
+        let audioMime = 'audio/mp4';
+        
+        if (isPTT) {
+          // Convert to proper voice note format
+          audioToSend = await converter.toPTT(buffer, 'mp3');
+          audioMime = 'audio/ogg; codecs=opus';
         }
-        // Video
-        else if (mimeType.startsWith('video/')) {
-          content = { 
-            video: buffer, 
-            caption: caption || quotedMsg.text || "🎥 Video", 
-            mimetype: mimeType,
-            gifPlayback: quotedMsg.message?.videoMessage?.gifPlayback || false, 
-            ...mentionAll 
-          };
-        }
-        // Audio
-        else if (mimeType.startsWith('audio/')) {
-          const isPTT = quotedMsg.message?.audioMessage?.ptt || false;
-          content = { 
-            audio: buffer, 
-            mimetype: isPTT ? 'audio/ogg; codecs=opus' : 'audio/mp4', 
-            ptt: isPTT, 
-            ...mentionAll 
-          };
-        }
-        // Sticker
-        else if (mimeType.includes('sticker') || mimeType.includes('webp')) {
-          content = { 
-            sticker: buffer, 
-            ...mentionAll 
-          };
-        }
-        // Document
-        else if (mimeType.includes('document') || mimeType.includes('pdf') || mimeType.includes('text')) {
-          content = {
-            document: buffer,
-            mimetype: mimeType || "application/octet-stream",
-            fileName: quotedMsg.message?.documentMessage?.fileName || "document",
-            caption: caption || quotedMsg.text || "",
-            ...mentionAll
-          };
-        }
-        // Unknown media type
-        else {
-          return reply("❌ Unsupported media type!");
-        }
-
-        if (content) {
-          return await conn.sendMessage(from, content, quotedOption);
-        }
-      } catch (e) {
-        console.error("Media download/send error:", e);
-        return reply("❌ Failed to process the media. Error: " + e.message);
+        
+        messageContent = {
+          audio: audioToSend,
+          mimetype: audioMime,
+          ptt: isPTT,
+          mentions: mentionedJid
+        };
+      }
+      else if (mimeType.includes('sticker')) {
+        const buffer = await quotedMsg.download();
+        if (!buffer) throw new Error("Failed to download sticker");
+        
+        messageContent = {
+          sticker: buffer,
+          mentions: mentionedJid
+        };
+      }
+      else {
+        // Fallback to text
+        messageContent = {
+          text: caption || "📢 Hidden tag",
+          mentions: mentionedJid
+        };
       }
     }
-
-    // If no quoted message, but text is provided
-    if (q) {
-      return await conn.sendMessage(from, {
+    // If only text is provided
+    else if (q) {
+      messageContent = {
         text: q,
-        ...mentionAll
-      }, quotedOption);
+        mentions: mentionedJid
+      };
     }
+
+    // Send as NEW MESSAGE (no quoted)
+    await conn.sendMessage(from, messageContent);
+    
+    // Success reaction
+    await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
   } catch (e) {
-    console.error("Tag Error:", e);
+    console.error("Hidden Tag Error:", e);
     reply(`❌ Error: ${e.message}`);
     await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
   }
