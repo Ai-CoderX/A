@@ -11,7 +11,7 @@ cmd({
 },
 async (conn, mek, m, {
   from, q, isGroup, isCreator, isAdmins,
-  participants, reply
+  participants, reply  // participants is already available here!
 }) => {
   try {
     if (!isGroup) return reply("❌ This command can only be used in groups.");
@@ -25,9 +25,7 @@ async (conn, mek, m, {
     // Send loading reaction
     await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
     
-    // Get all group members for mention
-    const groupMetadata = await conn.groupMetadata(from);
-    const participants = groupMetadata.participants;
+    // Use participants from parameters - NO need to fetch group metadata again!
     const mentionedJid = participants.map(p => p.id);
     
     // Add mentions to context
