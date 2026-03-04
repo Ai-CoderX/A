@@ -1,5 +1,3 @@
-// KHAN MD
-
 const { cmd } = require('../command');
 
 cmd({
@@ -13,7 +11,7 @@ cmd({
 },
 async (conn, mek, m, {
   from, q, isGroup, isCreator, isAdmins,
-  participants, reply  // participants is already available here!
+  participants, reply  // participants is already available from destructuring
 }) => {
   try {
     if (!isGroup) return reply("❌ This command can only be used in groups.");
@@ -27,14 +25,11 @@ async (conn, mek, m, {
     // Send loading reaction
     await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
     
-    // Use participants from parameters - NO need to fetch group metadata again!
+    // Use participants directly from destructuring (like your original tag command)
     const mentionedJid = participants.map(p => p.id);
     
-    // Add mentions to context
-    const contextInfo = {
-      mentionedJid: mentionedJid,
-      isForwarded: false
-    };
+    // Create mention object (like your original tag command)
+    const mentionAll = { mentions: mentionedJid };
     
     let messageContent = {};
 
@@ -49,7 +44,7 @@ async (conn, mek, m, {
       if (!mimeType) {
         messageContent = {
           text: caption || "📢 Tag all members",
-          contextInfo: contextInfo
+          ...mentionAll
         };
       }
       // Handle media messages
@@ -61,7 +56,7 @@ async (conn, mek, m, {
           image: buffer,
           caption: caption,
           mimetype: mimeType,
-          contextInfo: contextInfo
+          ...mentionAll
         };
       }
       else if (mimeType.startsWith('video/')) {
@@ -72,7 +67,7 @@ async (conn, mek, m, {
           video: buffer,
           caption: caption,
           mimetype: mimeType,
-          contextInfo: contextInfo
+          ...mentionAll
         };
       }
       else if (mimeType.startsWith('audio/')) {
@@ -85,7 +80,7 @@ async (conn, mek, m, {
           audio: buffer,
           mimetype: isPTT ? 'audio/ogg; codecs=opus' : 'audio/mp4',
           ptt: isPTT,
-          contextInfo: contextInfo
+          ...mentionAll
         };
       }
       else if (mimeType.includes('sticker')) {
@@ -94,14 +89,14 @@ async (conn, mek, m, {
         
         messageContent = {
           sticker: buffer,
-          contextInfo: contextInfo
+          ...mentionAll
         };
       }
       else {
         // Fallback to text
         messageContent = {
           text: caption || "📢 Tag all members",
-          contextInfo: contextInfo
+          ...mentionAll
         };
       }
     }
@@ -109,7 +104,7 @@ async (conn, mek, m, {
     else if (q) {
       messageContent = {
         text: q,
-        contextInfo: contextInfo
+        ...mentionAll
       };
     }
 
