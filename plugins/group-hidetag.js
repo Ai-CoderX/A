@@ -2,16 +2,16 @@ const { cmd } = require('../command');
 
 cmd({
   pattern: "hidetag",
-  alias: ["tag", "h"],
+  alias: ["tag", "taghide", "h"],  
   react: "🔊",
   desc: "Tag all members - Creator (new message) | Admins (reply to command)",
   category: "group",
-  use: '.tag Hello or reply to media',
+  use: '.hidetag Hello or reply to media',
   filename: __filename
 },
 async (conn, mek, m, {
   from, q, isGroup, isCreator, isAdmins,
-  participants, reply  // participants is already available from destructuring
+  participants, reply
 }) => {
   try {
     if (!isGroup) return reply("❌ This command can only be used in groups.");
@@ -25,99 +25,104 @@ async (conn, mek, m, {
     // Send loading reaction
     await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
     
-    // Use participants directly from destructuring (like your original tag command)
-    const mentionedJid = participants.map(p => p.id);
+    // Create mention object with all participants
+    const mentionAll = { mentions: participants.map(u => u.id) };
     
-    // Create mention object (like your original tag command)
-    const mentionAll = { mentions: mentionedJid };
-    
-    let messageContent = {};
-
-    // If there's a quoted message (media or text)
-    if (m.quoted) {
-      const quotedMsg = m.quoted;
-      const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
-      // If user provided text with command, use that as caption, otherwise use original caption
-      const caption = q || quotedMsg.text || "";
-      
-      // If it's a text message (no media)
-      if (!mimeType) {
-        messageContent = {
-          text: caption || "📢 Tag all members",
-          ...mentionAll
-        };
-      }
-      // Handle media messages
-      else if (mimeType.startsWith('image/')) {
-        const buffer = await quotedMsg.download();
-        if (!buffer) throw new Error("Failed to download image");
-        
-        messageContent = {
-          image: buffer,
-          caption: caption,
-          mimetype: mimeType,
-          ...mentionAll
-        };
-      }
-      else if (mimeType.startsWith('video/')) {
-        const buffer = await quotedMsg.download();
-        if (!buffer) throw new Error("Failed to download video");
-        
-        messageContent = {
-          video: buffer,
-          caption: caption,
-          mimetype: mimeType,
-          ...mentionAll
-        };
-      }
-      else if (mimeType.startsWith('audio/')) {
-        const buffer = await quotedMsg.download();
-        if (!buffer) throw new Error("Failed to download audio");
-        
-        const isPTT = quotedMsg.message?.audioMessage?.ptt || false;
-        
-        messageContent = {
-          audio: buffer,
-          mimetype: isPTT ? 'audio/ogg; codecs=opus' : 'audio/mp4',
-          ptt: isPTT,
-          ...mentionAll
-        };
-      }
-      else if (mimeType.includes('sticker')) {
-        const buffer = await quotedMsg.download();
-        if (!buffer) throw new Error("Failed to download sticker");
-        
-        messageContent = {
-          sticker: buffer,
-          ...mentionAll
-        };
-      }
-      else {
-        // Fallback to text
-        messageContent = {
-          text: caption || "📢 Tag all members",
-          ...mentionAll
-        };
-      }
-    }
-    // If only text is provided (no quoted message)
-    else if (q) {
-      messageContent = {
-        text: q,
-        ...mentionAll
-      };
-    }
-
     // Decide whether to quote the command message or not
     // Creator: Send as NEW message (no quoted)
     // Admin: Send as REPLY to command (with quoted)
     const quotedOption = isCreator ? null : { quoted: mek };
 
-    // Send the message with mentions
-    await conn.sendMessage(from, messageContent, quotedOption);
-    
-    // Success reaction
-    await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+    // If there's a quoted message (reply to media/text)
+    if (m.quoted) {
+      const quotedMsg = m.quoted;
+      const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
+      // If user provided text with command, use that as caption
+      const caption = q || "";
+      
+      // If it's a text message (no media)
+      if (!mimeType) {
+        const textToSend = caption || quotedMsg.text || "📢 Tag all members";
+        return await conn.sendMessage(from, {
+          text: textToSend,
+          ...mentionAll
+        }, quotedOption);
+      }
+
+      // Handle media messages
+      try {
+        const buffer = await quotedMsg.download();
+        if (!buffer) return reply("❌ Failed to download the quoted media.");
+
+        let content;
+        
+        // Image
+        if (mimeType.startsWith('image/')) {
+          content = { 
+            image: buffer, 
+            caption: caption || quotedMsg.text || "📷 Image", 
+            mimetype: mimeType,
+            ...mentionAll 
+          };
+        }
+        // Video
+        else if (mimeType.startsWith('video/')) {
+          content = { 
+            video: buffer, 
+            caption: caption || quotedMsg.text || "🎥 Video", 
+            mimetype: mimeType,
+            gifPlayback: quotedMsg.message?.videoMessage?.gifPlayback || false, 
+            ...mentionAll 
+          };
+        }
+        // Audio
+        else if (mimeType.startsWith('audio/')) {
+          const isPTT = quotedMsg.message?.audioMessage?.ptt || false;
+          content = { 
+            audio: buffer, 
+            mimetype: isPTT ? 'audio/ogg; codecs=opus' : 'audio/mp4', 
+            ptt: isPTT, 
+            ...mentionAll 
+          };
+        }
+        // Sticker
+        else if (mimeType.includes('sticker') || mimeType.includes('webp')) {
+          content = { 
+            sticker: buffer, 
+            ...mentionAll 
+          };
+        }
+        // Document
+        else if (mimeType.includes('document') || mimeType.includes('pdf') || mimeType.includes('text')) {
+          content = {
+            document: buffer,
+            mimetype: mimeType || "application/octet-stream",
+            fileName: quotedMsg.message?.documentMessage?.fileName || "document",
+            caption: caption || quotedMsg.text || "",
+            ...mentionAll
+          };
+        }
+        // Unknown media type
+        else {
+          return reply("❌ Unsupported media type!");
+        }
+
+        if (content) {
+          return await conn.sendMessage(from, content, quotedOption);
+        }
+      } catch (e) {
+        console.error("Media download/send error:", e);
+        return reply("❌ Failed to process the media. Error: " + e.message);
+      }
+    }
+
+    // If no quoted message, but text is provided
+    if (q) {
+      return await conn.sendMessage(from, {
+        text: q,
+        ...mentionAll
+      }, quotedOption);
+    }
 
   } catch (e) {
     console.error("Tag Error:", e);
