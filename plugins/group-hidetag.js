@@ -3,12 +3,12 @@ const converter = require('../lib/converter'); // Add for audio conversion
 
 // ============== .tag COMMAND (Admins + Creator) ==============
 cmd({
-  pattern: "tag",
-  alias: ["tagmembers"],
+  pattern: "tagall",
+  alias: ["tag"],
   react: "🔊",
-  desc: "Tag all members (Admins & Creator) - Replies to command message",
+  desc: "Tag all members (Admins & Creator) - Works with reply or direct message",
   category: "group",
-  use: '.tag [reply to message]',
+  use: '.tag Hello everyone OR reply to any message with .tag',
   filename: __filename
 },
 async (conn, mek, m, {
@@ -19,147 +19,9 @@ async (conn, mek, m, {
     if (!isGroup) return reply("❌ This command can only be used in groups.");
     if (!isAdmins && !isCreator) return reply("❌ Only group admins can use this command.");
 
-    // Check if there's a quoted message
-    if (!m.quoted) {
-      return reply("❌ Please reply to a message to tag all members.");
-    }
-
-    const quotedMsg = m.quoted;
-    const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
-    const caption = quotedMsg.text || q || "";
-    
-    // Send loading reaction
-    await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
-    
-    // Get all group members for mention
-    const groupMetadata = await conn.groupMetadata(from);
-    const participants = groupMetadata.participants;
-    const mentionedJid = participants.map(p => p.id);
-    
-    let messageContent = {};
-
-    // If it's a text message
-    if (!mimeType) {
-      messageContent = {
-        text: caption || "📢 Tag all members",
-        mentions: mentionedJid
-      };
-    }
-    // Handle media messages
-    else if (mimeType.startsWith('image/')) {
-      const buffer = await quotedMsg.download();
-      if (!buffer) throw new Error("Failed to download image");
-      
-      messageContent = {
-        image: buffer,
-        caption: caption || "",
-        mimetype: mimeType,
-        mentions: mentionedJid
-      };
-    }
-    else if (mimeType.startsWith('video/')) {
-      const buffer = await quotedMsg.download();
-      if (!buffer) throw new Error("Failed to download video");
-      
-      const isGif = quotedMsg.message?.videoMessage?.gifPlayback || false;
-      
-      messageContent = {
-        video: buffer,
-        caption: caption || "",
-        gifPlayback: isGif,
-        mimetype: mimeType,
-        mentions: mentionedJid
-      };
-    }
-    else if (mimeType.startsWith('audio/')) {
-      const buffer = await quotedMsg.download();
-      if (!buffer) throw new Error("Failed to download audio");
-      
-      const isPTT = quotedMsg.message?.audioMessage?.ptt || false;
-      
-      // Convert audio using converter (like status command)
-      let audioToSend = buffer;
-      let audioMime = 'audio/mp4';
-      
-      if (isPTT) {
-        // Convert to proper voice note format
-        audioToSend = await converter.toPTT(buffer, 'mp3');
-        audioMime = 'audio/ogg; codecs=opus';
-      }
-      
-      messageContent = {
-        audio: audioToSend,
-        mimetype: audioMime,
-        ptt: isPTT,
-        mentions: mentionedJid
-      };
-    }
-    else if (mimeType.includes('sticker')) {
-      const buffer = await quotedMsg.download();
-      if (!buffer) throw new Error("Failed to download sticker");
-      
-      messageContent = {
-        sticker: buffer,
-        mentions: mentionedJid
-      };
-    }
-    else if (mimeType.includes('document')) {
-      const buffer = await quotedMsg.download();
-      if (!buffer) throw new Error("Failed to download document");
-      
-      const fileName = quotedMsg.message?.documentMessage?.fileName || "document";
-      const docMime = quotedMsg.message?.documentMessage?.mimetype || "application/octet-stream";
-      
-      messageContent = {
-        document: buffer,
-        mimetype: docMime,
-        fileName: fileName,
-        caption: caption || "",
-        mentions: mentionedJid
-      };
-    }
-    else {
-      // Fallback to text
-      messageContent = {
-        text: caption || "📢 Tag all members",
-        mentions: mentionedJid
-      };
-    }
-
-    // Send as REPLY to command message
-    await conn.sendMessage(from, messageContent, { quoted: mek });
-    
-    // Success reaction
-    await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
-
-  } catch (e) {
-    console.error("Tag Error:", e);
-    reply(`❌ Error: ${e.message}`);
-    await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-  }
-});
-
-// ============== .h / .hidetag COMMAND (Creator Only) ==============
-cmd({
-  pattern: "hidetag",
-  alias: ["h"],
-  react: "🔇",
-  desc: "Hidden tag with custom message (Creator only) - Sends new message",
-  category: "owner",
-  use: '.h Hello everyone',
-  filename: __filename
-},
-async (conn, mek, m, {
-  from, q, isGroup, isCreator,
-  participants, reply
-}) => {
-  try {
-    if (!isGroup) return reply("❌ This command can only be used in groups.");
-    if (!isCreator) return reply("❌ Only the bot creator can use this command.");
-
-    // Check if there's text or quoted message
-    if (!q && !m.quoted) {
-      return reply("❌ Please provide a message or reply to media.");
+    // Check if there's ANY content (quoted message OR direct text)
+    if (!m.quoted && !q) {
+      return reply("❌ Please provide a message or reply to media to tag all members.");
     }
 
     // Send loading reaction
@@ -172,20 +34,20 @@ async (conn, mek, m, {
     
     let messageContent = {};
 
-    // If there's a quoted message (media)
+    // CASE 1: There's a quoted message (media or text)
     if (m.quoted) {
       const quotedMsg = m.quoted;
       const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
-      const caption = q || quotedMsg.text || "";
+      const caption = quotedMsg.text || q || "";
       
-      // If it's a text message
+      // If it's a text message (no mimeType)
       if (!mimeType) {
         messageContent = {
-          text: caption || "📢 Hidden tag",
+          text: caption || "📢 Tag all members",
           mentions: mentionedJid
         };
       }
-      // Handle media messages
+      // Handle IMAGE
       else if (mimeType.startsWith('image/')) {
         const buffer = await quotedMsg.download();
         if (!buffer) throw new Error("Failed to download image");
@@ -197,17 +59,22 @@ async (conn, mek, m, {
           mentions: mentionedJid
         };
       }
+      // Handle VIDEO
       else if (mimeType.startsWith('video/')) {
         const buffer = await quotedMsg.download();
         if (!buffer) throw new Error("Failed to download video");
         
+        const isGif = quotedMsg.message?.videoMessage?.gifPlayback || false;
+        
         messageContent = {
           video: buffer,
           caption: caption || "",
+          gifPlayback: isGif,
           mimetype: mimeType,
           mentions: mentionedJid
         };
       }
+      // Handle AUDIO/VOICE
       else if (mimeType.startsWith('audio/')) {
         const buffer = await quotedMsg.download();
         if (!buffer) throw new Error("Failed to download audio");
@@ -231,7 +98,8 @@ async (conn, mek, m, {
           mentions: mentionedJid
         };
       }
-      else if (mimeType.includes('sticker')) {
+      // Handle STICKER
+      else if (mimeType.includes('sticker') || mimeType.includes('webp')) {
         const buffer = await quotedMsg.download();
         if (!buffer) throw new Error("Failed to download sticker");
         
@@ -240,15 +108,231 @@ async (conn, mek, m, {
           mentions: mentionedJid
         };
       }
+      // Handle DOCUMENT
+      else if (mimeType.includes('document') || mimeType.includes('pdf') || mimeType.includes('application/')) {
+        const buffer = await quotedMsg.download();
+        if (!buffer) throw new Error("Failed to download document");
+        
+        const fileName = quotedMsg.message?.documentMessage?.fileName || "document";
+        const docMime = quotedMsg.message?.documentMessage?.mimetype || mimeType || "application/octet-stream";
+        
+        messageContent = {
+          document: buffer,
+          mimetype: docMime,
+          fileName: fileName,
+          caption: caption || "",
+          mentions: mentionedJid
+        };
+      }
+      // Handle CONTACT
+      else if (mimeType.includes('contact')) {
+        const contact = quotedMsg.message?.contactMessage;
+        messageContent = {
+          contacts: {
+            displayName: contact?.displayName || "Contact",
+            contacts: [{
+              vcard: contact?.vcard || "BEGIN:VCARD\nVERSION:3.0\nFN:Contact\nEND:VCARD"
+            }]
+          },
+          mentions: mentionedJid
+        };
+      }
+      // Handle LOCATION
+      else if (mimeType.includes('location')) {
+        const location = quotedMsg.message?.locationMessage;
+        messageContent = {
+          location: {
+            degreesLatitude: location?.degreesLatitude || 0,
+            degreesLongitude: location?.degreesLongitude || 0
+          },
+          mentions: mentionedJid
+        };
+      }
+      // Fallback to text for any other type
       else {
-        // Fallback to text
+        messageContent = {
+          text: caption || "📢 Tag all members",
+          mentions: mentionedJid
+        };
+      }
+    }
+    // CASE 2: No quoted message, just direct text
+    else if (q) {
+      messageContent = {
+        text: q,
+        mentions: mentionedJid
+      };
+    }
+
+    // Send as REPLY to command message
+    await conn.sendMessage(from, messageContent, { quoted: mek });
+    
+    // Success reaction
+    await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+
+  } catch (e) {
+    console.error("Tag Error:", e);
+    reply(`❌ Error: ${e.message}`);
+    await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+  }
+});
+
+// ============== .h / .hidetag COMMAND (Creator Only) ==============
+cmd({
+  pattern: "hidetag",
+  alias: ["h"],
+  react: "🔇",
+  desc: "Hidden tag with custom message (Creator only) - Works with reply or direct message",
+  category: "owner",
+  use: '.h Hello everyone OR reply to any message with .h',
+  filename: __filename
+},
+async (conn, mek, m, {
+  from, q, isGroup, isCreator,
+  participants, reply
+}) => {
+  try {
+    if (!isGroup) return reply("❌ This command can only be used in groups.");
+    if (!isCreator) return reply("❌ Only the bot creator can use this command.");
+
+    // Check if there's ANY content (quoted message OR direct text)
+    if (!m.quoted && !q) {
+      return reply("❌ Please provide a message or reply to media.");
+    }
+
+    // Send loading reaction
+    await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+    
+    // Get all group members for mention
+    const groupMetadata = await conn.groupMetadata(from);
+    const participants = groupMetadata.participants;
+    const mentionedJid = participants.map(p => p.id);
+    
+    let messageContent = {};
+
+    // CASE 1: There's a quoted message (media or text)
+    if (m.quoted) {
+      const quotedMsg = m.quoted;
+      const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
+      const caption = quotedMsg.text || q || "";
+      
+      // If it's a text message (no mimeType)
+      if (!mimeType) {
+        messageContent = {
+          text: caption || "📢 Hidden tag",
+          mentions: mentionedJid
+        };
+      }
+      // Handle IMAGE
+      else if (mimeType.startsWith('image/')) {
+        const buffer = await quotedMsg.download();
+        if (!buffer) throw new Error("Failed to download image");
+        
+        messageContent = {
+          image: buffer,
+          caption: caption || "",
+          mimetype: mimeType,
+          mentions: mentionedJid
+        };
+      }
+      // Handle VIDEO
+      else if (mimeType.startsWith('video/')) {
+        const buffer = await quotedMsg.download();
+        if (!buffer) throw new Error("Failed to download video");
+        
+        const isGif = quotedMsg.message?.videoMessage?.gifPlayback || false;
+        
+        messageContent = {
+          video: buffer,
+          caption: caption || "",
+          gifPlayback: isGif,
+          mimetype: mimeType,
+          mentions: mentionedJid
+        };
+      }
+      // Handle AUDIO/VOICE
+      else if (mimeType.startsWith('audio/')) {
+        const buffer = await quotedMsg.download();
+        if (!buffer) throw new Error("Failed to download audio");
+        
+        const isPTT = quotedMsg.message?.audioMessage?.ptt || false;
+        
+        // Convert audio using converter (like status command)
+        let audioToSend = buffer;
+        let audioMime = 'audio/mp4';
+        
+        if (isPTT) {
+          // Convert to proper voice note format
+          audioToSend = await converter.toPTT(buffer, 'mp3');
+          audioMime = 'audio/ogg; codecs=opus';
+        }
+        
+        messageContent = {
+          audio: audioToSend,
+          mimetype: audioMime,
+          ptt: isPTT,
+          mentions: mentionedJid
+        };
+      }
+      // Handle STICKER
+      else if (mimeType.includes('sticker') || mimeType.includes('webp')) {
+        const buffer = await quotedMsg.download();
+        if (!buffer) throw new Error("Failed to download sticker");
+        
+        messageContent = {
+          sticker: buffer,
+          mentions: mentionedJid
+        };
+      }
+      // Handle DOCUMENT
+      else if (mimeType.includes('document') || mimeType.includes('pdf') || mimeType.includes('application/')) {
+        const buffer = await quotedMsg.download();
+        if (!buffer) throw new Error("Failed to download document");
+        
+        const fileName = quotedMsg.message?.documentMessage?.fileName || "document";
+        const docMime = quotedMsg.message?.documentMessage?.mimetype || mimeType || "application/octet-stream";
+        
+        messageContent = {
+          document: buffer,
+          mimetype: docMime,
+          fileName: fileName,
+          caption: caption || "",
+          mentions: mentionedJid
+        };
+      }
+      // Handle CONTACT
+      else if (mimeType.includes('contact')) {
+        const contact = quotedMsg.message?.contactMessage;
+        messageContent = {
+          contacts: {
+            displayName: contact?.displayName || "Contact",
+            contacts: [{
+              vcard: contact?.vcard || "BEGIN:VCARD\nVERSION:3.0\nFN:Contact\nEND:VCARD"
+            }]
+          },
+          mentions: mentionedJid
+        };
+      }
+      // Handle LOCATION
+      else if (mimeType.includes('location')) {
+        const location = quotedMsg.message?.locationMessage;
+        messageContent = {
+          location: {
+            degreesLatitude: location?.degreesLatitude || 0,
+            degreesLongitude: location?.degreesLongitude || 0
+          },
+          mentions: mentionedJid
+        };
+      }
+      // Fallback to text for any other type
+      else {
         messageContent = {
           text: caption || "📢 Hidden tag",
           mentions: mentionedJid
         };
       }
     }
-    // If only text is provided
+    // CASE 2: No quoted message, just direct text
     else if (q) {
       messageContent = {
         text: q,
