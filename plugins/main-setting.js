@@ -193,6 +193,73 @@ cmd({
   await reply(`✅ Bot name updated to: *${newName}*`);
 });
 
+// ==================== ANTI-DELETE PATH ====================
+cmd({
+  pattern: "delpath",
+  alias: ["antideletepath", "deletepath"],
+  react: "🗑️",
+  desc: "Set where to send deleted messages (inbox/same)",
+  category: "setting",
+  filename: __filename
+}, async (conn, mek, m, { args, isCreator, reply }) => {
+  try {
+    if (!isCreator) return reply("*📛 Only the bot owner can use this command!*");
+
+    const path = args[0]?.toLowerCase();
+    
+    if (path === "inbox") {
+      config.ANTI_DELETE_PATH = "inbox";
+      process.env.ANTI_DELETE_PATH = "inbox";
+      await reply("🗑️ *Anti-delete path set to INBOX*\n_Deleted messages will be sent to your inbox_");
+    } 
+    else if (path === "same") {
+      config.ANTI_DELETE_PATH = "same";
+      process.env.ANTI_DELETE_PATH = "same";
+      await reply("🗑️ *Anti-delete path set to SAME*\n_Deleted messages will be sent to the same chat_");
+    } 
+    else {
+      const current = config.ANTI_DELETE_PATH || "inbox";
+      await reply(`*🗑️ Anti-delete Path*\n\n*Current:* ${current}\n\n*Options:*\n• inbox - Send to your inbox\n• same - Send to same chat\n\n*Example:* .delpath inbox`);
+    }
+  } catch (error) {
+    return reply(`*Error:* ${error.message}`);
+  }
+});
+
+// ==================== ANTI-EDIT PATH ====================
+cmd({
+  pattern: "editpath",
+  alias: ["antieditpath", "editpath"],
+  react: "✏️",
+  desc: "Set where to send edited messages (inbox/same)",
+  category: "setting",
+  filename: __filename
+}, async (conn, mek, m, { args, isCreator, reply }) => {
+  try {
+    if (!isCreator) return reply("*📛 Only the bot owner can use this command!*");
+
+    const path = args[0]?.toLowerCase();
+    
+    if (path === "inbox") {
+      config.ANTIEDIT_PATH = "inbox";
+      process.env.ANTIEDIT_PATH = "inbox";
+      await reply("✏️ *Anti-edit path set to INBOX*\n_Edited messages will be sent to your inbox_");
+    } 
+    else if (path === "same") {
+      config.ANTIEDIT_PATH = "same";
+      process.env.ANTIEDIT_PATH = "same";
+      await reply("✏️ *Anti-edit path set to SAME*\n_Edited messages will be sent to the same chat_");
+    } 
+    else {
+      const current = config.ANTIEDIT_PATH || "inbox";
+      await reply(`*✏️ Anti-edit Path*\n\n*Current:* ${current}\n\n*Options:*\n• inbox - Send to your inbox\n• same - Send to same chat\n\n*Example:* .editpath inbox`);
+    }
+  } catch (error) {
+    return reply(`*Error:* ${error.message}`);
+  }
+});
+
+
 // ==================== SET OWNER NAME ====================
 cmd({
   pattern: "ownername",
