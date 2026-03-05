@@ -12,7 +12,7 @@ const os = require('os');
 const { exec } = require('child_process');
 const axios = require('axios');
 const FormData = require('form-data');
-const { getLinkWarnings, saveLinkWarnings, addLinkWarning, removeLinkWarning, getBadWordWarnings, saveBadWordWarnings, addBadWordWarning, removeBadWordWarning } = require('../lib/warning');
+const { getLinkWarnings, removeLinkWarning, addLinkWarning } = require('../lib/warning');
 const { lidToPhone, cleanPN } = require("../lib/fixlid");
 
 // Placeholder for soft reload function (used only in prefix and mode commands)
@@ -174,8 +174,8 @@ cmd({
 
 // ==================== SET BOT NAME ====================
 cmd({
-  pattern: "setbotname",
-  alias: ["botname"],
+  pattern: "botname",
+  alias: ["setbotname"],
   desc: "Set the bot's name",
   category: "setting",
   react: "✅",
@@ -195,8 +195,8 @@ cmd({
 
 // ==================== SET OWNER NAME ====================
 cmd({
-  pattern: "setownername",
-  alias: ["ownername"],
+  pattern: "ownername",
+  alias: ["setownername"],
   desc: "Set the owner's name",
   category: "setting",
   react: "✅",
@@ -214,10 +214,373 @@ cmd({
   await reply(`✅ Owner name updated to: *${name}*`);
 });
 
+
+// status msg reply 
+
+cmd({
+  pattern: "statusmsg",
+  alias: ["setstatusmsg"],
+  desc: "Set auto status message",
+  category: "setting",
+  react: "✅",
+  filename: __filename
+}, async (conn, mek, m, { args, isCreator, reply }) => {
+  if (!isCreator) return reply("❗ Only the bot owner can use this command.");
+  
+  const status = args.join(" ").trim();
+  if (!status) return reply("❌ Provide a status message.");
+
+  config.AUTO_STATUS_MSG = status;
+  process.env.AUTO_STATUS_MSG = status;
+
+  await reply(`✅ Auto status message updated to: *${status}*`);
+});
+
+// ==================== BAN COMMANDS ====================
+
+// BAN USER
+cmd({
+    pattern: "ban",
+    alias: ["block"],
+    desc: "Ban a user from using the bot",
+    category: "setting",
+    react: "🔨",
+    filename: __filename
+}, async (conn, mek, m, { args, isCreator, reply, botNumber2, sender }) => {
+    try {
+        if (!isCreator) return reply("❗ Only the bot owner can use this command.");
+
+        let target = m.mentionedJid?.[0] || (m.quoted?.sender ?? null);
+
+        if (!target && args[0]) {
+            const cleanedNumber = args[0].replace(/[^0-9]/g, '');
+            if (cleanedNumber && cleanedNumber.length >= 10) {
+                target = cleanedNumber + "@s.whatsapp.net";
+            }
+        }
+
+        if (!target || !isValidNumber(target)) {
+            return reply("⚠️ Please provide a target to ban!\n\n*Usage:* `.ban @user` or `.ban 92342758****` or reply to a message");
+        }
+
+        target = await getTargetJid(conn, target);
+        if (!target) return reply("❌ Invalid target format.");
+
+        if (target === conn.user.id.split(':')[0] + '@s.whatsapp.net' || target === botNumber2) 
+            return reply("🤖 I can't ban myself!");
+        
+        if (target.includes(extractNumber(config.OWNER_NUMBER))) {
+            return reply("👑 Cannot ban the owner!");
+        }
+
+        let bannedList = Array.isArray(config.BANNED) ? [...config.BANNED] : [];
+
+        if (bannedList.includes(target)) {
+            return reply("❌ This user is already banned!");
+        }
+
+        bannedList.push(target);
+        config.BANNED = bannedList;
+        process.env.BANNED = bannedList.join(',');
+
+        await reply(`✅ *Banned Successfully*`);
+
+    } catch (error) {
+        console.error(error);
+        reply(`❌ Error: ${error.message}`);
+    }
+});
+
+// UNBAN USER
+cmd({
+    pattern: "unban",
+    alias: ["unblock"],
+    desc: "Unban a user from using the bot",
+    category: "setting",
+    react: "🔓",
+    filename: __filename
+}, async (conn, mek, m, { args, isCreator, reply }) => {
+    try {
+        if (!isCreator) return reply("❗ Only the bot owner can use this command.");
+
+        let target = m.mentionedJid?.[0] || (m.quoted?.sender ?? null);
+
+        if (!target && args[0]) {
+            const cleanedNumber = args[0].replace(/[^0-9]/g, '');
+            if (cleanedNumber && cleanedNumber.length >= 10) {
+                target = cleanedNumber + "@s.whatsapp.net";
+            }
+        }
+
+        if (!target || !isValidNumber(target)) {
+            return reply("⚠️ Please provide a target to unban!\n\n*Usage:* `.unban @user` or `.unban 92342758****` or reply to a message");
+        }
+
+        target = await getTargetJid(conn, target);
+        if (!target) return reply("❌ Invalid target format.");
+
+        let bannedList = Array.isArray(config.BANNED) ? [...config.BANNED] : [];
+
+        if (!bannedList.includes(target)) {
+            return reply("❌ This user is not banned!");
+        }
+
+        bannedList = bannedList.filter(user => user !== target);
+        config.BANNED = bannedList;
+        process.env.BANNED = bannedList.join(',');
+
+        await reply(`✅ *Unbanned Successfully*`);
+
+    } catch (error) {
+        console.error(error);
+        reply(`❌ Error: ${error.message}`);
+    }
+});
+
+// BAN LIST
+cmd({
+    pattern: "banlist",
+    alias: ["banned", "blocklist"],
+    desc: "Show list of banned users",
+    category: "setting",
+    react: "📋",
+    filename: __filename
+}, async (conn, mek, m, { isCreator, reply }) => {
+    try {
+        if (!isCreator) return reply("❗ Only the bot owner can use this command.");
+
+        let bannedList = Array.isArray(config.BANNED) ? config.BANNED.filter(s => s && s.length > 0) : [];
+
+        if (bannedList.length === 0) {
+            return reply("📋 *No banned users found.*");
+        }
+
+        let bannedText = "╭─〔 🚫 *BANNED USERS* 〕\n";
+        bannedList.forEach((user, index) => {
+            const number = extractNumber(user);
+            bannedText += `├─ ${index + 1}. ${number}\n`;
+        });
+        bannedText += "╰─────────────────";
+
+        await reply(bannedText);
+
+    } catch (error) {
+        console.error(error);
+        reply(`❌ Error: ${error.message}`);
+    }
+});
+
+// ==================== SUDO COMMANDS ====================
+
+// ADD SUDO
+cmd({
+    pattern: "addsudo",
+    alias: ["sudo"],
+    desc: "Add a user to sudo list",
+    category: "setting",
+    react: "➕",
+    filename: __filename
+}, async (conn, mek, m, { args, isCreator, botNumber2, reply }) => {
+    try {
+        if (!isCreator) return reply("❗ Only the bot owner can use this command.");
+
+        let target = m.mentionedJid?.[0] || (m.quoted?.sender ?? null);
+
+        if (!target && args[0]) {
+            const cleanedNumber = args[0].replace(/[^0-9]/g, '');
+            if (cleanedNumber && cleanedNumber.length >= 10) {
+                target = cleanedNumber + "@s.whatsapp.net";
+            }
+        }
+
+        if (!target || !isValidNumber(target)) {
+            return reply("⚠️ Please provide a target to add as sudo!\n\n*Usage:* `.addsudo @user` or `.addsudo 92342758****` or reply to a message");
+        }
+
+        target = await getTargetJid(conn, target);
+        if (!target) return reply("❌ Invalid target format.");
+
+        if (target === conn.user.id.split(':')[0] + '@s.whatsapp.net' || target === botNumber2) 
+            return reply("🤖 Bot is already sudo!");
+        
+        if (target.includes(extractNumber(config.OWNER_NUMBER))) {
+            return reply("👑 Owner already has sudo privileges!");
+        }
+
+        let sudoList = Array.isArray(config.SUDO) ? [...config.SUDO] : [];
+
+        if (sudoList.includes(target)) {
+            return reply("❌ This user is already in sudo list!");
+        }
+
+        sudoList.push(target);
+        config.SUDO = sudoList;
+        process.env.SUDO = sudoList.join(',');
+
+        await reply(`✅ *Sudo Added Successfully*`);
+
+    } catch (error) {
+        console.error(error);
+        reply(`❌ Error: ${error.message}`);
+    }
+});
+
+// REMOVE SUDO
+cmd({
+    pattern: "delsudo",
+    alias: ["removesudo", "rmsudo"],
+    desc: "Remove a user from sudo list",
+    category: "setting",
+    react: "➖",
+    filename: __filename
+}, async (conn, mek, m, { args, isCreator, reply }) => {
+    try {
+        if (!isCreator) return reply("❗ Only the bot owner can use this command.");
+
+        let target = m.mentionedJid?.[0] || (m.quoted?.sender ?? null);
+
+        if (!target && args[0]) {
+            const cleanedNumber = args[0].replace(/[^0-9]/g, '');
+            if (cleanedNumber && cleanedNumber.length >= 10) {
+                target = cleanedNumber + "@s.whatsapp.net";
+            }
+        }
+
+        if (!target || !isValidNumber(target)) {
+            return reply("⚠️ Please provide a target to remove from sudo!\n\n*Usage:* `.delsudo @user` or `.delsudo 92342758****` or reply to a message");
+        }
+
+        target = await getTargetJid(conn, target);
+        if (!target) return reply("❌ Invalid target format.");
+
+        if (target.includes(extractNumber(config.OWNER_NUMBER))) {
+            return reply("👑 Cannot remove the owner from sudo!");
+        }
+
+        let sudoList = Array.isArray(config.SUDO) ? [...config.SUDO] : [];
+
+        if (!sudoList.includes(target)) {
+            return reply("❌ This user is not in sudo list!");
+        }
+
+        sudoList = sudoList.filter(user => user !== target);
+        config.SUDO = sudoList;
+        process.env.SUDO = sudoList.join(',');
+
+        await reply(`✅ *Sudo Deleted Successfully*`);
+
+    } catch (error) {
+        console.error(error);
+        reply(`❌ Error: ${error.message}`);
+    }
+});
+
+// SUDO LIST
+cmd({
+    pattern: "sudolist",
+    alias: ["sudoers", "sudoerslist"],
+    desc: "Show list of sudo users",
+    category: "setting",
+    react: "📋",
+    filename: __filename
+}, async (conn, mek, m, { isCreator, reply }) => {
+    try {
+        if (!isCreator) return reply("❗ Only the bot owner can use this command.");
+
+        let sudoList = Array.isArray(config.SUDO) ? config.SUDO.filter(s => s && s.length > 0) : [];
+
+        const ownerNumber = extractNumber(config.OWNER_NUMBER);
+
+        let sudoText = "╭─〔 👑 *SUDO USERS* 〕\n";
+        sudoText += `├─ *Owner:* ${ownerNumber}\n`;
+        
+        if (sudoList.length === 0) {
+            sudoText += "├─ *No additional sudo users*\n";
+        } else {
+            sudoList.forEach((user, index) => {
+                const number = extractNumber(user);
+                sudoText += `├─ ${index + 1}. ${number}\n`;
+            });
+        }
+        sudoText += "╰─────────────────";
+
+        await reply(sudoText);
+
+    } catch (error) {
+        console.error(error);
+        reply(`❌ Error: ${error.message}`);
+    }
+});
+
+
+// reject msg
+
+cmd({
+  pattern: "rejectmsg",
+  alias: ["setrejectmsg"],
+  desc: "Set anti-call reject message",
+  category: "setting",
+  react: "✅",
+  filename: __filename
+}, async (conn, mek, m, { args, isCreator, reply }) => {
+  if (!isCreator) return reply("❗ Only the bot owner can use this command.");
+  
+  const message = args.join(" ").trim();
+  if (!message) return reply("❌ Provide a reject message.");
+
+  config.REJECT_MSG = message;
+  process.env.REJECT_MSG = message;
+
+  await reply(`✅ Reject message updated to: *${message}*`);
+});
+
+// owner number 
+
+cmd({
+    pattern: "setowner",
+    desc: "Set the bot owner number",
+    category: "setting",
+    react: "👑",
+    filename: __filename
+}, async (conn, mek, m, { args, isCreator, reply }) => {
+    try {
+        if (!isCreator) return reply("❗ Only the bot owner can use this command.");
+
+        let target = m.mentionedJid?.[0] || (m.quoted?.sender ?? null);
+
+        if (!target && args[0]) {
+            const cleanedNumber = args[0].replace(/[^0-9]/g, '');
+            if (cleanedNumber && cleanedNumber.length >= 10) {
+                target = cleanedNumber + "@s.whatsapp.net";
+            }
+        }
+
+        if (!target || !isValidNumber(target)) {
+            return reply("⚠️ Please provide a valid number!\n\n*Usage:* `.owner @user` or `.owner 923427582273` or reply to a message");
+        }
+
+        target = await getTargetJid(conn, target);
+        if (!target) return reply("❌ Invalid target format.");
+
+        // Extract just the number without @s.whatsapp.net
+        const ownerNumber = extractNumber(target);
+
+        config.OWNER_NUMBER = ownerNumber;
+        process.env.OWNER_NUMBER = ownerNumber;
+
+        await reply(`✅ *Owner number updated to:* ${ownerNumber}`);
+
+    } catch (error) {
+        console.error(error);
+        reply(`❌ Error: ${error.message}`);
+    }
+});
+
+
 // ==================== SET BOT DESCRIPTION ====================
 cmd({
-  pattern: "setdescription",
-  alias: ["setdesc", "description", "botdesc"],
+  pattern: "description",
+  alias: ["setdesc", "botdesc"],
   react: "📝",
   desc: "Set the bot's description message",
   category: "setting",
@@ -239,6 +602,56 @@ cmd({
   } catch (error) {
     console.error('Error in setdescription command:', error);
     reply(`❌ Error: ${error.message}`);
+  }
+});
+
+// AUTO STATUS REPLY
+cmd({
+  pattern: "autostatusreply",
+  react: "🫟",
+  alias: ["statusreply", "status-reply"],
+  desc: "Enable or disable status-reply feature",
+  category: "setting",
+  filename: __filename
+}, async (conn, mek, m, { from, args, isCreator, reply }) => {
+  if (!isCreator) return reply("*📛 ᴏɴʟʏ ᴛʜᴇ ᴏᴡɴᴇʀ ᴄᴀɴ ᴜsᴇ ᴛʜɪs ᴄᴏᴍᴍᴀɴᴅ!*");
+
+  const status = args[0]?.toLowerCase();
+  if (status === "on") {
+    config.AUTO_STATUS_REPLY = "true";
+    process.env.AUTO_STATUS_REPLY = "true";
+    return reply("Status-reply feature is now enabled.");
+  } else if (status === "off") {
+    config.AUTO_STATUS_REPLY = "false";
+    process.env.AUTO_STATUS_REPLY = "false";
+    return reply("Status-reply feature is now disabled.");
+  } else {
+    return reply(`*🫟 ᴇxᴀᴍᴘʟᴇ:  .sᴛᴀᴛᴜsʀᴇᴘʟʏ ᴏɴ*`);
+  }
+});
+
+// AUTO STATUS REPLY
+cmd({
+  pattern: "statuslike",
+  alias: ["statusreact"],
+  react: "🐦",
+  desc: "Enable or disable statusreact feature",
+  category: "setting",
+  filename: __filename
+}, async (conn, mek, m, { from, args, isCreator, reply }) => {
+  if (!isCreator) return reply("*📛 ᴏɴʟʏ ᴛʜᴇ ᴏᴡɴᴇʀ ᴄᴀɴ ᴜsᴇ ᴛʜɪs ᴄᴏᴍᴍᴀɴᴅ!*");
+
+  const status = args[0]?.toLowerCase();
+  if (status === "on") {
+    config.AUTO_STATUS_LIKE = "true";
+    process.env.AUTO_STATUS_LIKE = "true";
+    return reply("Statuslike feature is now enabled.");
+  } else if (status === "off") {
+    config.AUTO_STATUS_LIKE = "false";
+    process.env.AUTO_STATUS_LIKE = "false";
+    return reply("Statusreact feature is now disabled.");
+  } else {
+    return reply(`*🫟 ᴇxᴀᴍᴘʟᴇ:  .statuslike on*`);
   }
 });
 
@@ -264,6 +677,31 @@ cmd({
     return reply("*❌ Anti-call has been disabled*");
   } else {
     return reply(`*Example: anti-call on/off*`);
+  }
+});
+
+// MENTION REPLY
+cmd({
+  pattern: "mentionreply",
+  alias: ["mention"],
+  desc: "Enable or disable mention reply feature",
+  react: "🔗",
+  category: "setting",
+  filename: __filename
+}, async (conn, mek, m, { from, args, isCreator, reply }) => {
+  if (!isCreator) return reply("*📛 ᴏɴʟʏ ᴛʜᴇ ᴏᴡɴᴇʀ ᴄᴀɴ ᴜsᴇ ᴛʜɪs ᴄᴏᴍᴍᴀɴᴅ!*");
+
+  const status = args[0]?.toLowerCase();
+  if (status === "on") {
+    config.MENTION_REPLY = "true";
+    process.env.MENTION_REPLY = "true";
+    return reply("Mention Reply feature is now enabled.");
+  } else if (status === "off") {
+    config.MENTION_REPLY = "false";
+    process.env.MENTION_REPLY = "false";
+    return reply("Mention Reply feature is now disabled.");
+  } else {
+    return reply(`_example:  .mention on_`);
   }
 });
 
@@ -323,39 +761,11 @@ cmd({
   }
 });
 
-// ==================== ANTI-LINK (SIMPLIFIED - on/off only) ====================
-cmd({
-  pattern: "antilink",
-  alias: ["anti-link"],
-  desc: "Enable or disable anti-link feature in groups",
-  category: "setting",
-  react: "🔗",
-  filename: __filename
-}, async (conn, mek, m, { args, isCreator, reply }) => {
-  try {
-    if (!isCreator) return reply("*📛 Only the owner can use this command!*");
-
-    if (args[0] === "on") {
-      config.ANTI_LINK = "true";
-      process.env.ANTI_LINK = "true";
-      await reply("🔗 *Anti-link is now ENABLED*");
-    } else if (args[0] === "off") {
-      config.ANTI_LINK = "false";
-      process.env.ANTI_LINK = "false";
-      await reply("🔗 *Anti-link is now DISABLED*");
-    } else {
-      const current = config.ANTI_LINK || "false";
-      await reply(`*Current Status:* ${current === "true" ? "ON" : "OFF"}\n\n• *on* - Enable\n• *off* - Disable\n\n*Example:* .antilink on`);
-    }
-  } catch (error) {
-    return reply(`*Error:* ${error.message}`);
-  }
-});
 
 // ==================== ANTI-BAD WORD ====================
 cmd({
-    pattern: "antibat",
-    alias: ["antibad", "anti-bad"],
+    pattern: "antibad",
+    alias: ["antibat", "anti-bad"],
     desc: "Enable/disable anti-bad word feature",
     category: "setting",
     react: "🚫",
@@ -364,21 +774,31 @@ cmd({
     try {
         if (!isCreator) return reply("❗ Only the bot owner can use this command.");
 
-        const status = args[0]?.toLowerCase();
+        const mode = args[0]?.toLowerCase();
         
-        if (status === "on") {
-            config.ANTI_BAD_WORD = "true";
-            process.env.ANTI_BAD_WORD = "true";
-            reply("✅ *Anti-bad word is now ENABLED*");
+        if (mode === "on") {
+            config.ANTI_BAD_WORD = "on";
+            process.env.ANTI_BAD_WORD = "on";
+            reply("✅ *Anti-bad word is now ON*\n_Mode: Delete message_");
         } 
-        else if (status === "off") {
-            config.ANTI_BAD_WORD = "false";
-            process.env.ANTI_BAD_WORD = "false";
-            reply("❌ *Anti-bad word is now DISABLED*");
+        else if (mode === "off") {
+            config.ANTI_BAD_WORD = "off";
+            process.env.ANTI_BAD_WORD = "off";
+            reply("❌ *Anti-bad word is now OFF*");
+        }
+        else if (mode === "delete") {
+            config.ANTI_BAD_WORD = "delete";
+            process.env.ANTI_BAD_WORD = "delete";
+            reply("🗑️ *Anti-bad word set to DELETE mode*\n_Bad messages will be deleted_");
+        }
+        else if (mode === "warn") {
+            config.ANTI_BAD_WORD = "warn";
+            process.env.ANTI_BAD_WORD = "warn";
+            reply("⚠️ *Anti-bad word set to WARN mode*\n_User will be warned but message stays_");
         }
         else {
-            const current = config.ANTI_BAD_WORD || "false";
-            reply(`*Current:* ${current === "true" ? "ON" : "OFF"}\n\n*Options:* on / off\n\n*Example:* .antibat on`);
+            const current = config.ANTI_BAD_WORD || "off";
+            reply(`*Current Mode:* ${current.toUpperCase()}\n\n*Options:*\n• on - Enable (delete)\n• off - Disable\n• delete - Delete bad messages\n• warn - Warn only\n\n*Example:* .antibad delete`);
         }
 
     } catch (error) {
@@ -386,6 +806,7 @@ cmd({
         reply(`❌ Error: ${error.message}`);
     }
 });
+
 
 // ==================== ADD BAD WORD ====================
 cmd({
@@ -453,32 +874,207 @@ cmd({
     }
 });
 
+// RESET ALL WARNINGS
+cmd({
+    pattern: "resetwarn",
+    alias: ["clearwarnings", "resetwarnings"],
+    desc: "Remove all anti-link warnings",
+    category: "setting",
+    react: "🗑️",
+    filename: __filename
+}, async (conn, mek, m, { isCreator, reply }) => {
+    try {
+        if (!isCreator) return reply("❗ Only the bot owner can use this command.");
+
+        config.LINK_WARNINGS = [];
+        process.env.LINK_WARNINGS = "";
+
+        await reply("✅ *All warnings have been reset*");
+
+    } catch (error) {
+        console.error(error);
+        reply(`❌ Error: ${error.message}`);
+    }
+});
+
+// WARNING LIST
+cmd({
+    pattern: "warnlist",
+    alias: ["warnings", "warns"],
+    desc: "Show list of anti-link warnings",
+    category: "setting",
+    react: "📋",
+    filename: __filename
+}, async (conn, mek, m, { isCreator, reply }) => {
+    try {
+        if (!isCreator) return reply("❗ Only the bot owner can use this command.");
+
+        let warnings = getLinkWarnings().filter(s => s && s.length > 0);
+
+        if (warnings.length === 0) {
+            return reply("📋 *No warnings found.*");
+        }
+
+        let warnText = "╭─〔 ⚠️ *WARNING LIST* 〕\n";
+        warnings.forEach((item, index) => {
+            const [number, count] = item.split('-');
+            warnText += `├─ ${index + 1}. ${number} - *${count}* warns\n`;
+        });
+        warnText += "╰─────────────────";
+
+        await reply(warnText);
+
+    } catch (error) {
+        console.error(error);
+        reply(`❌ Error: ${error.message}`);
+    }
+});
+
+// GIVE WARNING
+cmd({
+    pattern: "warn",
+    alias: ["addwarn", "givewarn"],
+    desc: "Give anti-link warning to a user",
+    category: "setting",
+    react: "⚠️",
+    filename: __filename
+}, async (conn, mek, m, { args, isCreator, reply }) => {
+    try {
+        if (!isCreator) return reply("❗ Only the bot owner can use this command.");
+
+        let target = m.mentionedJid?.[0] || (m.quoted?.sender ?? null);
+
+        if (!target && args[0]) {
+            const cleanedNumber = args[0].replace(/[^0-9]/g, '');
+            if (cleanedNumber && cleanedNumber.length >= 10) {
+                target = cleanedNumber + "@s.whatsapp.net";
+            }
+        }
+
+        if (!target || !isValidNumber(target)) {
+            return reply("⚠️ Please provide a target!\n\n*Usage:* `.warn @user` or `.warn 92342758****` or reply to a message");
+        }
+
+        target = await getTargetJid(conn, target);
+        if (!target) return reply("❌ Invalid target format.");
+
+        const senderNumber = extractNumber(target);
+        const newCount = addLinkWarning(senderNumber);
+
+        await reply(`⚠️ *Warning added*\n\nNumber: ${senderNumber}\nTotal Warnings: *${newCount}*`);
+
+    } catch (error) {
+        console.error(error);
+        reply(`❌ Error: ${error.message}`);
+    }
+});
+
+// DELETE WARNING
+cmd({
+    pattern: "delwarn",
+    alias: ["removewarn", "unwarn"],
+    desc: "Remove anti-link warning from a user",
+    category: "setting",
+    react: "🔓",
+    filename: __filename
+}, async (conn, mek, m, { args, isCreator, reply }) => {
+    try {
+        if (!isCreator) return reply("❗ Only the bot owner can use this command.");
+
+        let target = m.mentionedJid?.[0] || (m.quoted?.sender ?? null);
+
+        if (!target && args[0]) {
+            const cleanedNumber = args[0].replace(/[^0-9]/g, '');
+            if (cleanedNumber && cleanedNumber.length >= 10) {
+                target = cleanedNumber + "@s.whatsapp.net";
+            }
+        }
+
+        if (!target || !isValidNumber(target)) {
+            return reply("⚠️ Please provide a target!\n\n*Usage:* `.delwarn @user` or `.delwarn 92342758****` or reply to a message");
+        }
+
+        target = await getTargetJid(conn, target);
+        if (!target) return reply("❌ Invalid target format.");
+
+        const senderNumber = extractNumber(target);
+        removeLinkWarning(senderNumber);
+
+        await reply(`✅ *Warnings removed for* ${senderNumber}`);
+
+    } catch (error) {
+        console.error(error);
+        reply(`❌ Error: ${error.message}`);
+    }
+});
+
+// antilink 
+
+cmd({
+  pattern: "antilink",
+  alias: ["anti-link"],
+  desc: "Enable or disable anti-link feature in groups",
+  category: "setting",
+  react: "🔗",
+  filename: __filename
+}, async (conn, mek, m, { args, isCreator, reply }) => {
+  try {
+    if (!isCreator) return reply("*📛 Only the owner can use this command!*");
+
+    const option = args[0]?.toLowerCase();
+
+    if (option === "on") {
+      config.ANTI_LINK = "true";
+      process.env.ANTI_LINK = "true";
+      await reply("🔗 *Anti-link is now ENABLED* (Delete Mode)");
+    } else if (option === "off") {
+      config.ANTI_LINK = "false";
+      process.env.ANTI_LINK = "false";
+      await reply("🔗 *Anti-link is now DISABLED*");
+    } else if (option === "delete") {
+      config.ANTI_LINK = "delete";
+      process.env.ANTI_LINK = "delete";
+      await reply("🗑️ *Anti-link set to DELETE mode*");
+    } else if (option === "warn") {
+      config.ANTI_LINK = "warn";
+      process.env.ANTI_LINK = "warn";
+      await reply("⚠️ *Anti-link set to WARN mode*");
+    } else {
+      const current = config.ANTI_LINK || "false";
+      let statusText = current === "true" ? "ON (Delete)" : 
+                      current === "false" ? "OFF" : 
+                      current.toUpperCase();
+      await reply(`*🔗 Anti-link Status: ${statusText}*\n\n*Options:*\n• on - Enable (delete)\n• off - Disable\n• delete - Delete links\n• warn - Warn only\n\n*Example:* .antilink on`);
+    }
+  } catch (error) {
+    return reply(`*Error:* ${error.message}`);
+  }
+});
+
+
 // ==================== WELCOME (SIMPLIFIED - on/off only) ====================
+// WELCOME
 cmd({
   pattern: "welcome",
   alias: ["setwelcome"],
-  react: "👋",
-  desc: "Enable or disable welcome/goodbye messages",
+  react: "✅",
+  desc: "Enable or disable welcome messages for new members",
   category: "setting",
   filename: __filename
 }, async (conn, mek, m, { from, args, isCreator, reply }) => {
-  if (!isCreator) return reply("*📛 Only the bot owner can use this command!*");
+  if (!isCreator) return reply("*📛 ᴏɴʟʏ ᴛʜᴇ ᴏᴡɴᴇʀ ᴄᴀɴ ᴜsᴇ ᴛʜɪs ᴄᴏᴍᴍᴀɴᴅ!*");
 
   const status = args[0]?.toLowerCase();
   if (status === "on") {
     config.WELCOME = "true";
-    config.GOODBYE = "true";
     process.env.WELCOME = "true";
-    process.env.GOODBYE = "true";
-    return reply("👋 *Welcome/Goodbye messages are now ENABLED*");
+    return reply("✅ Welcome messages are now enabled.");
   } else if (status === "off") {
     config.WELCOME = "false";
-    config.GOODBYE = "false";
     process.env.WELCOME = "false";
-    process.env.GOODBYE = "false";
-    return reply("👋 *Welcome/Goodbye messages are now DISABLED*");
+    return reply("❌ Welcome messages are now disabled.");
   } else {
-    return reply(`*👋 Welcome Command*\n\n• *on* - Enable welcome/goodbye\n• *off* - Disable welcome/goodbye\n\n*Example:* .welcome on`);
+    return reply(`Example: .welcome on`);
   }
 });
 
@@ -509,8 +1105,7 @@ cmd({
 
 // ==================== AUTO-STATUS-VIEW ====================
 cmd({
-  pattern: "autostatusview",
-  alias: ["status-view", "sview", "statusview"],
+  pattern: "statusview",
   desc: "Enable or disable auto-viewing of statuses",
   category: "setting",
   filename: __filename
@@ -533,8 +1128,7 @@ cmd({
 
 // ==================== READ MESSAGE ====================
 cmd({
-  pattern: "read-message",
-  alias: ["autoread"],
+  pattern: "autoread",
   desc: "Enable or disable read message feature",
   category: "setting",
   filename: __filename
@@ -551,7 +1145,7 @@ cmd({
     process.env.READ_MESSAGE = "false";
     return reply("❌ *Read message feature is now DISABLED*");
   } else {
-    return reply(`_example: .read-message on_`);
+    return reply(`_example: .autoread on_`);
   }
 });
 
@@ -582,6 +1176,7 @@ cmd({
 });
 
 // ==================== AUTO-TYPING ====================
+
 cmd({
   pattern: "autotyping",
   alias: ["auto-typing", "typing"],
@@ -590,24 +1185,32 @@ cmd({
   category: "setting",
   filename: __filename
 }, async (conn, mek, m, { from, args, isCreator, reply }) => {
-  if (!isCreator) return reply("*📛 Only the owner can use this command!*");
+  if (!isCreator) return reply("*📛 ᴏɴʟʏ ᴛʜᴇ ᴏᴡɴᴇʀ ᴄᴀɴ ᴜsᴇ ᴛʜɪs ᴄᴏᴍᴍᴀɴᴅ!*");
 
   const status = args[0]?.toLowerCase();
   
   if (status === "on") {
     config.AUTO_TYPING = "true";
     process.env.AUTO_TYPING = "true";
-    return reply("⌨️ *Auto-typing is now ENABLED*");
+    return reply("⌨️ *Auto-typing is now ENABLED for both inbox and groups*");
+  } else if (status === "ib") {
+    config.AUTO_TYPING = "inbox";
+    process.env.AUTO_TYPING = "inbox";
+    return reply("⌨️ *Auto-typing is now ENABLED for inbox only*");
+  } else if (status === "gc") {
+    config.AUTO_TYPING = "group";
+    process.env.AUTO_TYPING = "group";
+    return reply("⌨️ *Auto-typing is now ENABLED for groups only*");
   } else if (status === "off") {
     config.AUTO_TYPING = "false";
     process.env.AUTO_TYPING = "false";
     return reply("⌨️ *Auto-typing is now DISABLED*");
   } else {
-    return reply(`*Example:* .autotyping on`);
+    return reply(`*⌨️ Auto-typing Command*\n\n• *on* - Enable for both\n• *ib* - Enable for inbox only\n• *gc* - Enable for groups only\n• *off* - Disable\n\n*Example:* .autotyping on`);
   }
 });
 
-// ==================== AUTO-RECORDING ====================
+// ===== AUTO RECORDING =====
 cmd({
   pattern: "autorecording",
   alias: ["recording", "auto-recording"],
@@ -616,24 +1219,34 @@ cmd({
   category: "setting",
   filename: __filename
 }, async (conn, mek, m, { from, args, isCreator, reply }) => {
-  if (!isCreator) return reply("*📛 Only the owner can use this command!*");
+  if (!isCreator) return reply("*📛 ᴏɴʟʏ ᴛʜᴇ ᴏᴡɴᴇʀ ᴄᴀɴ ᴜsᴇ ᴛʜɪs ᴄᴏᴍᴍᴀɴᴅ!*");
 
   const status = args[0]?.toLowerCase();
   
   if (status === "on") {
     config.AUTO_RECORDING = "true";
     process.env.AUTO_RECORDING = "true";
-    return reply("🎙️ *Auto-recording is now ENABLED*");
+    return reply("🎙️ *Auto-recording is now ENABLED for both inbox and groups*");
+  } else if (status === "ib") {
+    config.AUTO_RECORDING = "inbox";
+    process.env.AUTO_RECORDING = "inbox";
+    return reply("🎙️ *Auto-recording is now ENABLED for inbox only*");
+  } else if (status === "gc") {
+    config.AUTO_RECORDING = "group";
+    process.env.AUTO_RECORDING = "group";
+    return reply("🎙️ *Auto-recording is now ENABLED for groups only*");
   } else if (status === "off") {
     config.AUTO_RECORDING = "false";
     process.env.AUTO_RECORDING = "false";
     return reply("🎙️ *Auto-recording is now DISABLED*");
   } else {
-    return reply(`*Example:* .autorecording on`);
+    return reply(`*🎙️ Auto-recording Command*\n\n• *on* - Enable for both\n• *ib* - Enable for inbox only\n• *gc* - Enable for groups only\n• *off* - Disable\n\n*Example:* .autorecording on`);
   }
 });
 
+
 // ==================== AUTO-DOWNLOADER ====================
+
 cmd({
     pattern: "autodl",
     alias: ["downloader", "auto-downloader"],
@@ -642,20 +1255,32 @@ cmd({
     category: "setting",
     filename: __filename
 }, async (conn, mek, m, { from, args, isCreator, reply }) => {
-    if (!isCreator) return reply("*📛 Only the bot owner can use this command!*");
+    if (!isCreator) return reply("*📛 ᴏɴʟʏ ᴛʜᴇ ᴏᴡɴᴇʀ ᴄᴀɴ ᴜsᴇ ᴛʜɪs ᴄᴏᴍᴍᴀɴᴅ!*");
 
     const status = args[0]?.toLowerCase();
     
     if (status === "on") {
         config.AUTO_DOWNLOADER = "true";
         process.env.AUTO_DOWNLOADER = "true";
-        return reply("📥 *Auto-downloader is now ENABLED*");
+        return reply("📥 *Auto-downloader is now ENABLED for both inbox and groups*");
+    } else if (status === "ib") {
+        config.AUTO_DOWNLOADER = "inbox";
+        process.env.AUTO_DOWNLOADER = "inbox";
+        return reply("📥 *Auto-downloader is now ENABLED for inbox only*");
+    } else if (status === "gc") {
+        config.AUTO_DOWNLOADER = "group";
+        process.env.AUTO_DOWNLOADER = "group";
+        return reply("📥 *Auto-downloader is now ENABLED for groups only*");
+    } else if (status === "owner") {
+        config.AUTO_DOWNLOADER = "owner";
+        process.env.AUTO_DOWNLOADER = "owner";
+        return reply("📥 *Auto-downloader is now ENABLED for owner only*");
     } else if (status === "off") {
         config.AUTO_DOWNLOADER = "false";
         process.env.AUTO_DOWNLOADER = "false";
         return reply("📥 *Auto-downloader is now DISABLED*");
     } else {
-        return reply(`*Example:* .autodl on`);
+        return reply(`*📥 Auto-downloader Command*\n\n• *on* - Enable for both\n• *ib* - Enable for inbox only\n• *gc* - Enable for groups only\n• *owner* - Enable for owner only\n• *off* - Disable\n\n*Example:* .autodownloader on`);
     }
 });
 
@@ -711,8 +1336,8 @@ cmd({
 
 // ==================== ADMIN EVENTS ====================
 cmd({
-  pattern: "admin-events",
-  alias: ["adminevents", "adminaction"],
+  pattern: "adminaction",
+  alias: ["adminevent"],
   desc: "Enable or disable admin event notifications",
   category: "setting",
   filename: __filename
@@ -761,7 +1386,7 @@ cmd({
 // ==================== SET STATUS EMOJIS ====================
 cmd({
     pattern: "statusemojis",
-    alias: ["semoji", "ssreact", "statusreact"],
+    alias: ["likeemojis", "statusemoji"],
     react: "😎",
     desc: "Set emojis for status reactions (max 50)\nExample: .statusemojis 🥺,🙃,😂,❤️",
     category: "setting",
@@ -800,8 +1425,8 @@ cmd({
 
 // ==================== SET REACTION EMOJIS ====================
 cmd({
-    pattern: "setemojis",
-    alias: ["remoji", "reactemojis", "setreaction", "reacts"],
+    pattern: "reactemojis",
+    alias: ["setemojis", "setreaction", "reacts"],
     react: "🔥",
     desc: "Set emojis for auto message reactions (max 50)\nExample: .reacts 🚫,🙃,😂,🥺",
     category: "setting",
@@ -841,7 +1466,6 @@ cmd({
 // ==================== SET OWNER EMOJIS ====================
 cmd({
     pattern: "owneremoji",
-    alias: ["oemoji", "setownerreaction", "ownereacts"],
     react: "👑",
     desc: "Set emojis for owner reactions (max 50)\nExample: .ownereacts 👑,💎,🤖,⚡,🚫",
     category: "setting",
@@ -878,10 +1502,11 @@ cmd({
     }
 });
 
+
 // ==================== HELP/SETTINGS GUIDE ====================
 cmd({
     pattern: "setting",
-    alias: ["settings", "help", "config", "setting", "env"],
+    alias: ["settings", "help", "config", "env"],
     react: "📚",
     desc: "Show how to enable/disable bot settings",
     category: "setting",
@@ -897,18 +1522,39 @@ cmd({
         guideText += `╭─〔 🤖 *BOT CORE* 〕\n`;
         guideText += `├─ *Set Prefix:* .setprefix .\n`;
         guideText += `├─ *Set Mode:* .mode public / .mode private\n`;
-        guideText += `├─ *Set Bot Name:* .setbotname KHAN-MD\n`;
-        guideText += `├─ *Set Owner Name:* .setownername JawadTech\n`;
+        guideText += `├─ *Set Bot Name:* .botname KHAN-MD\n`;
+        guideText += `├─ *Set Owner Name:* .ownername JawadTech\n`;
+        guideText += `├─ *Set Owner Number:* .setowner 923427582273\n`;
         guideText += `├─ *Set Bot Image:* .botdp (reply to image)\n`;
-        guideText += `├─ *Set Description:* .setdescription Text\n`;
+        guideText += `├─ *Set Description:* .description Text\n`;
+        guideText += `├─ *Status Msg:* .statusmsg Text\n`;
+        guideText += `├─ *Reject Msg:* .rejectmsg Text\n`;
         guideText += `╰─────────────────\n\n`;
 
         guideText += `╭─〔 🛡️ *ANTI FEATURES* 〕\n`;
         guideText += `├─ *Anti-Call:* .anti-call on / off\n`;
         guideText += `├─ *Anti-Delete:* .antidelete on / off\n`;
         guideText += `├─ *Anti-Edit:* .antiedit on / off\n`;
-        guideText += `├─ *Anti-Link:* .antilink on / off\n`;
-        guideText += `├─ *Anti-Bad Word:* .antibat on / off\n`;
+        guideText += `├─ *Anti-Link:* .antilink on / off / delete / warn\n`;
+        guideText += `├─ *Anti-Bad Word:* .antibad on / off / delete / warn\n`;
+        guideText += `├─ *Add Bad Word:* .addbadword word\n`;
+        guideText += `├─ *Remove Bad Word:* .removebadword word\n`;
+        guideText += `╰─────────────────\n\n`;
+
+        guideText += `╭─〔 ⚠️ *WARNINGS* 〕\n`;
+        guideText += `├─ *Warning List:* .warnlist\n`;
+        guideText += `├─ *Give Warning:* .warn @user\n`;
+        guideText += `├─ *Delete Warning:* .delwarn @user\n`;
+        guideText += `├─ *Reset All:* .resetwarn\n`;
+        guideText += `╰─────────────────\n\n`;
+
+        guideText += `╭─〔 🚫 *BAN/SUDO* 〕\n`;
+        guideText += `├─ *Ban User:* .ban @user\n`;
+        guideText += `├─ *Unban User:* .unban @user\n`;
+        guideText += `├─ *Ban List:* .banlist\n`;
+        guideText += `├─ *Add Sudo:* .addsudo @user\n`;
+        guideText += `├─ *Del Sudo:* .delsudo @user\n`;
+        guideText += `├─ *Sudo List:* .sudolist\n`;
         guideText += `╰─────────────────\n\n`;
 
         guideText += `╭─〔 👋 *WELCOME* 〕\n`;
@@ -918,27 +1564,30 @@ cmd({
         guideText += `╭─〔 😊 *REACTIONS* 〕\n`;
         guideText += `├─ *Auto React:* .autoreact on / off\n`;
         guideText += `├─ *Owner React:* .ownerreact on / off\n`;
-        guideText += `├─ *Status View:* .autostatusview on / off\n`;
-        guideText += `├─ *Set React Emojis:* .setemojis ❤️,🔥,👍\n`;
+        guideText += `├─ *Status Like:* .statuslike on / off\n`;
+        guideText += `├─ *Status Reply:* .autostatusreply on / off\n`;
+        guideText += `├─ *Status View:* .statusview on / off\n`;
+        guideText += `├─ *Mention Reply:* .mentionreply on / off\n`;
+        guideText += `├─ *Set React Emojis:* .reactemojis ❤️,🔥,👍\n`;
         guideText += `├─ *Set Status Emojis:* .statusemojis ❤️,🔥,👍\n`;
         guideText += `├─ *Set Owner Emojis:* .owneremoji 👑,💎,🤖\n`;
         guideText += `╰─────────────────\n\n`;
 
         guideText += `╭─〔 📱 *PRESENCE* 〕\n`;
         guideText += `├─ *Always Online:* .alwaysonline on / off\n`;
-        guideText += `├─ *Auto Typing:* .autotyping on / off\n`;
-        guideText += `├─ *Auto Recording:* .autorecording on / off\n`;
-        guideText += `├─ *Read Message:* .read-message on / off\n`;
+        guideText += `├─ *Auto Typing:* .autotyping on / ib / gc / off\n`;
+        guideText += `├─ *Auto Recording:* .autorecording on / ib / gc / off\n`;
+        guideText += `├─ *Read Message:* .autoread on / off\n`;
         guideText += `╰─────────────────\n\n`;
 
         guideText += `╭─〔 📥 *AUTO FEATURES* 〕\n`;
-        guideText += `├─ *Auto Downloader:* .autodl on / off\n`;
+        guideText += `├─ *Auto Downloader:* .autodl on / ib / gc / owner / off\n`;
         guideText += `├─ *Auto Sticker:* .autosticker on / off\n`;
         guideText += `├─ *Auto Reply:* .autoreply on / off\n`;
         guideText += `╰─────────────────\n\n`;
 
-        guideText += `╭─〔 👑 *OWNER* 〕\n`;
-        guideText += `├─ *Admin Events:* .admin-events on / off\n`;
+        guideText += `╭─〔 👑 *ADMIN* 〕\n`;
+        guideText += `├─ *Admin Events:* .adminaction on / off\n`;
         guideText += `╰─────────────────\n\n`;
 
         guideText += `> ${config.DESCRIPTION || 'KHAN-MD'}`;
@@ -953,7 +1602,7 @@ cmd({
 // ==================== ENV LIST - SHOW CURRENT VALUES ====================
 cmd({
     pattern: "envlist",
-    alias: ["showconfig"],
+    alias: ["showconfig", "configlist"],
     react: "📋",
     desc: "Show all current bot configuration values",
     category: "setting",
@@ -967,7 +1616,7 @@ cmd({
             if (Array.isArray(val)) {
                 if (val.length === 0) return 'None';
                 return val.map(v => {
-                    if (v.includes('@s.whatsapp.net')) return v.split('@')[0];
+                    if (typeof v === 'string' && v.includes('@s.whatsapp.net')) return v.split('@')[0];
                     return v;
                 }).join(', ');
             }
@@ -976,18 +1625,30 @@ cmd({
 
         let envText = `╭─〔 📋 *CURRENT CONFIGURATION* 〕\n`;
         envText += `├─ *Bot Name:* ${config.BOT_NAME || 'KHAN-MD'}\n`;
-        envText += `├─ *Owner:* ${config.OWNER_NAME || 'JawadTech'} (${config.OWNER_NUMBER || '923427582273'})\n`;
+        envText += `├─ *Owner:* ${config.OWNER_NAME || 'JawadTech'}\n`;
+        envText += `├─ *Owner Number:* ${config.OWNER_NUMBER || 'Not Set'}\n`;
         envText += `├─ *Prefix:* ${config.PREFIX || '.'}\n`;
         envText += `├─ *Mode:* ${config.MODE || 'private'}\n`;
         envText += `├─ *Version:* ${config.VERSION || '10.0 Beta'}\n`;
+        envText += `├─ *Description:* ${config.DESCRIPTION || 'Not Set'}\n`;
         envText += `╰─────────────────\n\n`;
 
         envText += `╭─〔 🛡️ *ANTI FEATURES* 〕\n`;
         envText += `├─ *ANTI_CALL:* ${config.ANTI_CALL || 'false'}\n`;
         envText += `├─ *ANTI_DELETE:* ${config.ANTI_DELETE || 'true'}\n`;
         envText += `├─ *ANTI_EDIT:* ${config.ANTI_EDIT || 'false'}\n`;
-        envText += `├─ *ANTI_LINK:* ${config.ANTI_LINK || 'true'}\n`;
-        envText += `├─ *ANTI_BAD_WORD:* ${config.ANTI_BAD_WORD || 'false'}\n`;
+        envText += `├─ *ANTI_LINK:* ${config.ANTI_LINK || 'false'}\n`;
+        envText += `├─ *ANTI_BAD_WORD:* ${config.ANTI_BAD_WORD || 'off'}\n`;
+        envText += `├─ *Bad Words:* ${formatValue(config.BAD_WORDS)}\n`;
+        envText += `╰─────────────────\n\n`;
+
+        envText += `╭─〔 ⚠️ *WARNINGS* 〕\n`;
+        envText += `├─ *Link Warnings:* ${formatValue(config.LINK_WARNINGS)}\n`;
+        envText += `╰─────────────────\n\n`;
+
+        envText += `╭─〔 🚫 *BAN/SUDO* 〕\n`;
+        envText += `├─ *Banned:* ${formatValue(config.BANNED)}\n`;
+        envText += `├─ *Sudo:* ${formatValue(config.SUDO)}\n`;
         envText += `╰─────────────────\n\n`;
 
         envText += `╭─〔 👋 *WELCOME* 〕\n`;
@@ -997,7 +1658,10 @@ cmd({
         envText += `╭─〔 😊 *REACTIONS* 〕\n`;
         envText += `├─ *AUTO_REACT:* ${config.AUTO_REACT || 'false'}\n`;
         envText += `├─ *OWNER_REACT:* ${config.OWNER_REACT || 'false'}\n`;
+        envText += `├─ *AUTO_STATUS_LIKE:* ${config.AUTO_STATUS_LIKE || 'false'}\n`;
+        envText += `├─ *AUTO_STATUS_REPLY:* ${config.AUTO_STATUS_REPLY || 'false'}\n`;
         envText += `├─ *AUTO_STATUS_SEEN:* ${config.AUTO_STATUS_SEEN || 'true'}\n`;
+        envText += `├─ *MENTION_REPLY:* ${config.MENTION_REPLY || 'false'}\n`;
         envText += `├─ *STATUS_LIKE_EMOJIS:* ${formatValue(config.STATUS_LIKE_EMOJIS)}\n`;
         envText += `├─ *REACT_EMOJIS:* ${formatValue(config.REACT_EMOJIS)}\n`;
         envText += `├─ *OWNER_EMOJIS:* ${formatValue(config.OWNER_EMOJIS)}\n`;
@@ -1016,11 +1680,16 @@ cmd({
         envText += `├─ *AUTO_REPLY:* ${config.AUTO_REPLY || 'false'}\n`;
         envText += `╰─────────────────\n\n`;
 
-        envText += `╭─〔 👑 *OWNER* 〕\n`;
+        envText += `╭─〔 👑 *ADMIN* 〕\n`;
         envText += `├─ *ADMIN_ACTION:* ${config.ADMIN_ACTION || 'false'}\n`;
         envText += `╰─────────────────\n\n`;
 
-        envText += `> Use .settings to see how to change these values`;
+        envText += `╭─〔 📝 *MESSAGES* 〕\n`;
+        envText += `├─ *AUTO_STATUS_MSG:* ${config.AUTO_STATUS_MSG || 'Not Set'}\n`;
+        envText += `├─ *REJECT_MSG:* ${config.REJECT_MSG || 'Not Set'}\n`;
+        envText += `╰─────────────────\n\n`;
+
+        envText += `> Use .setting to see how to change these values`;
 
         await reply(envText);
     } catch (error) {
