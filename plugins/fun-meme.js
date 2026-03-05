@@ -44,6 +44,7 @@ cmd({
 });
 
 // ==================== TECHNOLOGIA COMMAND ====================
+
 cmd({
     pattern: "technologia",
     alias: ["tech", "technologyia"],
@@ -51,34 +52,17 @@ cmd({
     category: "fun",
     react: "😂",
     filename: __filename
-}, async (conn, mek, m, { from, reply }) => {
+},
+async (conn, mek, m, { from, reply }) => {
     try {
-        const audioUrl = "https://files.catbox.moe/fac856.mp3";
-        
-        // Show recording animation
-        await conn.sendPresenceUpdate('recording', from);
-        
-        // Fetch audio
-        const audioResponse = await fetch(audioUrl);
-        const arrayBuffer = await audioResponse.arrayBuffer();
-        const audioBuffer = Buffer.from(arrayBuffer);
-
-        // Fixed 3-second delay before converting
-        await delay(3000);
-
-        // Convert to PTT
-        const pttAudio = await converter.toPTT(audioBuffer, 'mp3');
-
-        // Send voice note
         await conn.sendMessage(from, {
-            audio: pttAudio,
-            mimetype: 'audio/ogg; codecs=opus',
-            ptt: true
+            audio: { url: "https://files.catbox.moe/fac856.mp3" },
+            mimetype: "audio/mpeg",
+            ptt: false
         }, { quoted: mek });
-
     } catch (e) {
         console.error(e);
-        reply(`*❌ Technologia Failed!*\n_Blyat! Error: ${e.message}_`);
+        reply("*❌ Technologia Failed!*\n_Blyat! Error: " + e.message + "_");
     }
 });
 
