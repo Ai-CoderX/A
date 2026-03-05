@@ -99,7 +99,7 @@
     "ANTI_EDIT": {
       "description": "Anti edit: true/false (Default: false)",
       "required": false,
-      "value": "false"
+      "value": "true"
     },
     "ANTIEDIT_PATH": {
       "description": "Anti edit path: inbox/group/all (Default: inbox)",
