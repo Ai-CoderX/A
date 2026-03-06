@@ -701,7 +701,7 @@ cmd({
 cmd({
   pattern: "statuslike",
   alias: ["statusreact"],
-  react: "🐦",
+  react: "🇵🇸",
   desc: "Enable or disable statusreact feature",
   category: "setting",
   filename: __filename
@@ -710,12 +710,12 @@ cmd({
 
   const status = args[0]?.toLowerCase();
   if (status === "on") {
-    config.AUTO_STATUS_LIKE = "true";
-    process.env.AUTO_STATUS_LIKE = "true";
+    config.AUTO_LIKE_STATUS = "true";
+    process.env.AUTO_LIKE_STATUS = "true";
     return reply("Statuslike feature is now enabled.");
   } else if (status === "off") {
-    config.AUTO_STATUS_LIKE = "false";
-    process.env.AUTO_STATUS_LIKE = "false";
+    config.AUTO_LIKE_STATUS = "false";
+    process.env.AUTO_LIKE_STATUS = "false";
     return reply("Statusreact feature is now disabled.");
   } else {
     return reply(`*🫟 ᴇxᴀᴍᴘʟᴇ:  .statuslike on*`);
@@ -1093,7 +1093,7 @@ cmd({
     if (option === "on") {
       config.ANTI_LINK = "true";
       process.env.ANTI_LINK = "true";
-      await reply("🔗 *Anti-link is now ENABLED* (Delete Mode)");
+      await reply("🔗 *Anti-link is now ENABLED* (Remove Mode)");
     } else if (option === "off") {
       config.ANTI_LINK = "false";
       process.env.ANTI_LINK = "false";
@@ -1725,7 +1725,7 @@ cmd({
         envText += `╭─〔 😊 *REACTIONS* 〕\n`;
         envText += `├─ *AUTO_REACT:* ${config.AUTO_REACT || 'false'}\n`;
         envText += `├─ *OWNER_REACT:* ${config.OWNER_REACT || 'false'}\n`;
-        envText += `├─ *AUTO_STATUS_LIKE:* ${config.AUTO_STATUS_LIKE || 'false'}\n`;
+        envText += `├─ *AUTO_LIKE_STATUS:* ${config.AUTO_LIKE_STATUS || 'false'}\n`;
         envText += `├─ *AUTO_STATUS_REPLY:* ${config.AUTO_STATUS_REPLY || 'false'}\n`;
         envText += `├─ *AUTO_STATUS_SEEN:* ${config.AUTO_STATUS_SEEN || 'true'}\n`;
         envText += `├─ *MENTION_REPLY:* ${config.MENTION_REPLY || 'false'}\n`;
