@@ -1119,11 +1119,158 @@ cmd({
 });
 
 
-// ==================== WELCOME (SIMPLIFIED - on/off only) ====================
-// WELCOME
+// ==================== WELCOME SETTINGS COMMAND ====================
+cmd({
+  pattern: "setwelcome",
+  alias: ["welcomemsg", "setwelcomemsg"],
+  desc: "Set welcome message and image\nReply to image to set welcome image\n\n*Placeholders:*\n• @user - Mention new member\n• @group - Group name\n• @desc - Group description\n• @count - Total members\n• @bot - Bot name\n• @time - Current time",
+  category: "setting",
+  react: "✅",
+  filename: __filename
+}, async (conn, mek, m, { args, isCreator, reply, text }) => {
+  try {
+    if (!isCreator) return reply("❗ Only the bot owner can use this command.");
+
+    // Check if replying to an image
+    if (m.quoted) {
+      const quotedMsg = m.quoted;
+      const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
+      
+      if (mimeType.startsWith("image")) {
+        // Upload image to catbox
+        const mediaBuffer = await quotedMsg.download();
+        const extension = mimeType.includes("jpeg") ? ".jpg" : ".png";
+        const tempFilePath = path.join(os.tmpdir(), `welcome_${Date.now()}${extension}`);
+        fs.writeFileSync(tempFilePath, mediaBuffer);
+
+        const form = new FormData();
+        form.append("fileToUpload", fs.createReadStream(tempFilePath), `welcome${extension}`);
+        form.append("reqtype", "fileupload");
+
+        const response = await axios.post("https://catbox.moe/user/api.php", form, {
+          headers: form.getHeaders()
+        });
+
+        fs.unlinkSync(tempFilePath);
+
+        if (typeof response.data !== 'string' || !response.data.startsWith('https://')) {
+          throw new Error(`Catbox upload failed: ${response.data}`);
+        }
+
+        // Update welcome image
+        config.WELCOME_IMAGE = response.data;
+        process.env.WELCOME_IMAGE = response.data;
+
+        // If there's text message, update welcome message too
+        if (text && text.trim()) {
+          config.WELCOME_MSG = text.trim();
+          process.env.WELCOME_MSG = text.trim();
+          await reply(`✅ Welcome message and image updated!\n\n*Message:*\n${text.trim()}\n\n*Image URL:*\n${response.data}`);
+        } else {
+          await reply(`✅ Welcome image updated!\n\n*Image URL:*\n${response.data}\n\n*Current Welcome Message:*\n${config.WELCOME_MSG || 'Default message will be used'}`);
+        }
+        return;
+      }
+    }
+
+    // If no image reply, just update message
+    if (text && text.trim()) {
+      config.WELCOME_MSG = text.trim();
+      process.env.WELCOME_MSG = text.trim();
+      
+      // Also clear welcome image if they want to use group image
+      config.WELCOME_IMAGE = "";
+      process.env.WELCOME_IMAGE = "";
+      
+      await reply(`✅ Welcome message updated!\n\n*New Message:*\n${text.trim()}\n\n*Note:* Using group image for welcome.\nTo set custom image, reply to an image with this command.`);
+    } else {
+      // If no text and no image reply, show current settings
+      await reply(`*Current Welcome Settings:*\n\n*Message:*\n${config.WELCOME_MSG || 'Default message'}\n\n*Image:*\n${config.WELCOME_IMAGE ? config.WELCOME_IMAGE : 'Using group image'}\n\n*Status:* ${config.WELCOME === "true" ? '✅ Enabled' : '❌ Disabled'}\n\n*To update:*\n• Send .setwelcome your message here\n• Or reply to an image to set welcome image\n\n*Placeholders:*\n• @user - Mention new member\n• @group - Group name\n• @desc - Group description\n• @count - Total members\n• @bot - Bot name\n• @time - Current time`);
+    }
+  } catch (err) {
+    console.error(err);
+    reply(`❌ Error: ${err.message || err}`);
+  }
+});
+
+// ==================== GOODBYE SETTINGS COMMAND ====================
+cmd({
+  pattern: "setgoodbye",
+  alias: ["goodbyemsg", "setgoodbyemsg"],
+  desc: "Set goodbye message and image\nReply to image to set goodbye image\n\n*Placeholders:*\n• @user - Mention leaving member\n• @group - Group name\n• @desc - Group description\n• @count - Total members\n• @bot - Bot name\n• @time - Current time",
+  category: "setting",
+  react: "✅",
+  filename: __filename
+}, async (conn, mek, m, { args, isCreator, reply, text }) => {
+  try {
+    if (!isCreator) return reply("❗ Only the bot owner can use this command.");
+
+    // Check if replying to an image
+    if (m.quoted) {
+      const quotedMsg = m.quoted;
+      const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
+      
+      if (mimeType.startsWith("image")) {
+        // Upload image to catbox
+        const mediaBuffer = await quotedMsg.download();
+        const extension = mimeType.includes("jpeg") ? ".jpg" : ".png";
+        const tempFilePath = path.join(os.tmpdir(), `goodbye_${Date.now()}${extension}`);
+        fs.writeFileSync(tempFilePath, mediaBuffer);
+
+        const form = new FormData();
+        form.append("fileToUpload", fs.createReadStream(tempFilePath), `goodbye${extension}`);
+        form.append("reqtype", "fileupload");
+
+        const response = await axios.post("https://catbox.moe/user/api.php", form, {
+          headers: form.getHeaders()
+        });
+
+        fs.unlinkSync(tempFilePath);
+
+        if (typeof response.data !== 'string' || !response.data.startsWith('https://')) {
+          throw new Error(`Catbox upload failed: ${response.data}`);
+        }
+
+        // Update goodbye image
+        config.GOODBYE_IMAGE = response.data;
+        process.env.GOODBYE_IMAGE = response.data;
+
+        // If there's text message, update goodbye message too
+        if (text && text.trim()) {
+          config.GOODBYE_MSG = text.trim();
+          process.env.GOODBYE_MSG = text.trim();
+          await reply(`✅ Goodbye message and image updated!\n\n*Message:*\n${text.trim()}\n\n*Image URL:*\n${response.data}`);
+        } else {
+          await reply(`✅ Goodbye image updated!\n\n*Image URL:*\n${response.data}\n\n*Current Goodbye Message:*\n${config.GOODBYE_MSG || 'Default message will be used'}`);
+        }
+        return;
+      }
+    }
+
+    // If no image reply, just update message
+    if (text && text.trim()) {
+      config.GOODBYE_MSG = text.trim();
+      process.env.GOODBYE_MSG = text.trim();
+      
+      // Also clear goodbye image if they want to use group image
+      config.GOODBYE_IMAGE = "";
+      process.env.GOODBYE_IMAGE = "";
+      
+      await reply(`✅ Goodbye message updated!\n\n*New Message:*\n${text.trim()}\n\n*Note:* Using group image for goodbye.\nTo set custom image, reply to an image with this command.`);
+    } else {
+      // If no text and no image reply, show current settings
+      await reply(`*Current Goodbye Settings:*\n\n*Message:*\n${config.GOODBYE_MSG || 'Default message'}\n\n*Image:*\n${config.GOODBYE_IMAGE ? config.GOODBYE_IMAGE : 'Using group image'}\n\n*Status:* ${config.GOODBYE === "true" ? '✅ Enabled' : '❌ Disabled'}\n\n*To update:*\n• Send .setgoodbye your message here\n• Or reply to an image to set goodbye image\n\n*Placeholders:*\n• @user - Mention leaving member\n• @group - Group name\n• @desc - Group description\n• @count - Total members\n• @bot - Bot name\n• @time - Current time`);
+    }
+  } catch (err) {
+    console.error(err);
+    reply(`❌ Error: ${err.message || err}`);
+  }
+});
+
+// ==================== WELCOME ON/OFF COMMAND ====================
 cmd({
   pattern: "welcome",
-  alias: ["setwelcome"],
+  alias: ["welcomeswitch"],
   react: "✅",
   desc: "Enable or disable welcome messages for new members",
   category: "setting",
@@ -1141,7 +1288,32 @@ cmd({
     process.env.WELCOME = "false";
     return reply("❌ Welcome messages are now disabled.");
   } else {
-    return reply(`Example: .welcome on`);
+    return reply(`*Usage:* .welcome on/off\n*Current Status:* ${config.WELCOME === "true" ? '✅ Enabled' : '❌ Disabled'}\n\n*Example:* .welcome on`);
+  }
+});
+
+// ==================== GOODBYE ON/OFF COMMAND ====================
+cmd({
+  pattern: "goodbye",
+  alias: ["goodbyeswitch"],
+  react: "✅",
+  desc: "Enable or disable goodbye messages for leaving members",
+  category: "setting",
+  filename: __filename
+}, async (conn, mek, m, { from, args, isCreator, reply }) => {
+  if (!isCreator) return reply("*📛 ᴏɴʟʏ ᴛʜᴇ ᴏᴡɴᴇʀ ᴄᴀɴ ᴜsᴇ ᴛʜɪs ᴄᴏᴍᴍᴀɴᴅ!*");
+
+  const status = args[0]?.toLowerCase();
+  if (status === "on") {
+    config.GOODBYE = "true";
+    process.env.GOODBYE = "true";
+    return reply("✅ Goodbye messages are now enabled.");
+  } else if (status === "off") {
+    config.GOODBYE = "false";
+    process.env.GOODBYE = "false";
+    return reply("❌ Goodbye messages are now disabled.");
+  } else {
+    return reply(`*Usage:* .goodbye on/off\n*Current Status:* ${config.GOODBYE === "true" ? '✅ Enabled' : '❌ Disabled'}\n\n*Example:* .goodbye on`);
   }
 });
 
