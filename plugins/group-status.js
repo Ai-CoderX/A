@@ -1,10 +1,12 @@
+// KHAN MD
+
 const { cmd } = require('../command');
 
 cmd({
     pattern: "groupstatus",
     alias: ["statusgc", "gcstatus", "swgc"],
     desc: "Post group status with media or text (mentions all members)",
-    category: "owner",
+    category: "group",
     react: "📢",
     filename: __filename
 }, async (conn, mek, m, { from, text, reply, isCreator, isGroup }) => {
