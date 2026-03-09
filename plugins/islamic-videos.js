@@ -14,7 +14,7 @@ const islamicQueries = [
 ];
 
 cmd({
-    pattern: "status",
+    pattern: "islamic",
     desc: "Send random Islamic status videos from TikTok",
     react: '❤️',
     category: 'download',
