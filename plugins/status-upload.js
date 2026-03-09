@@ -1,16 +1,13 @@
-// Jawad
-
 const { cmd } = require('../command');
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 
 cmd({
     pattern: "status",
-    alias: ["uploadstatus", "mystatus", "setstatus", "upstatus", "mystory"],
-    desc: "Upload status with media or text (like manual upload)",
+    alias: ["sw", "mystatus", "uploadstatus"],
+    desc: "Upload status with media or text",
     category: "owner",
     react: "📱",
     filename: __filename
-}, async (conn, mek, m, { from, text, reply, isCreator, isGroup }) => {
+}, async (conn, mek, m, { from, text, reply, isCreator, sender }) => {
     // Check if user is owner
     if (!isCreator) return reply("❌ This command is only for owners!");
     
@@ -29,112 +26,109 @@ cmd({
             return reply(
                 `⚠️ Reply to media or provide text!\n\n` +
                 `Examples:\n` +
-                `• .mystatus Hello everyone\n` +
-                `• Reply to an image with: .mystatus\n` +
-                `• Reply to a video with: .mystatus`
+                `• .status Hello everyone\n` +
+                `• Reply to an image with: .status\n` +
+                `• Reply to video/audio with: .status`
             );
         }
         
         // Send loading reaction
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
         
-        let statusContent = [];
+        // Your status broadcast ID (personal status)
+        const statusJid = 'status@broadcast';
+        
+        // Your own JID in the format needed for statusJidList
+        const myJid = sender.includes(':') ? sender.split(':')[0] + '@s.whatsapp.net' : sender;
+        
+        let messageContent = {};
         
         // If there's quoted media
         if (quotedMsg) {
-            try {
-                // Get message type
+            // Download media
+            const mediaBuffer = await quotedMsg.download();
+            if (!mediaBuffer) throw new Error("Failed to download media");
+            
+            // Handle different media types based on mimeType
+            if (mimeType.startsWith('image/')) {
+                // Image status
+                messageContent = {
+                    image: mediaBuffer,
+                    caption: caption || "",
+                    mimetype: mimeType
+                };
+            } 
+            else if (mimeType.startsWith('video/')) {
+                // Video status
+                messageContent = {
+                    video: mediaBuffer,
+                    caption: caption || "",
+                    mimetype: mimeType
+                };
+            } 
+            else if (mimeType.startsWith('audio/')) {
+                // Audio status (voice note)
+                const isPTT = quotedMsg.message?.audioMessage?.ptt || false;
+                
+                messageContent = {
+                    audio: mediaBuffer,
+                    mimetype: isPTT ? 'audio/ogg; codecs=opus' : 'audio/mp4',
+                    ptt: isPTT
+                };
+            }
+            else {
+                // Try to detect by message type as fallback
                 const msgType = Object.keys(quotedMsg.message || {})[0];
                 
-                // Download media
-                const stream = await downloadContentFromMessage(
-                    quotedMsg.message[msgType],
-                    msgType.replace('Message', '')
-                );
-                
-                let buffer = Buffer.from([]);
-                for await (const chunk of stream) {
-                    buffer = Buffer.concat([buffer, chunk]);
-                }
-                
-                if (!buffer || buffer.length === 0) {
-                    throw new Error("Failed to download media");
-                }
-                
-                // Prepare status based on media type
                 if (msgType === 'imageMessage') {
-                    statusContent.push({
-                        type: 'image',
-                        media: buffer,
+                    messageContent = {
+                        image: mediaBuffer,
                         caption: caption || "",
-                        mimetype: quotedMsg.message[msgType].mimetype || 'image/jpeg'
-                    });
-                } 
+                        mimetype: 'image/jpeg'
+                    };
+                }
                 else if (msgType === 'videoMessage') {
-                    statusContent.push({
-                        type: 'video',
-                        media: buffer,
+                    messageContent = {
+                        video: mediaBuffer,
                         caption: caption || "",
-                        mimetype: quotedMsg.message[msgType].mimetype || 'video/mp4'
-                    });
-                } 
+                        mimetype: 'video/mp4'
+                    };
+                }
                 else if (msgType === 'audioMessage' || msgType === 'pttMessage') {
-                    statusContent.push({
-                        type: 'audio',
-                        media: buffer,
+                    messageContent = {
+                        audio: mediaBuffer,
                         mimetype: msgType === 'pttMessage' ? 'audio/ogg; codecs=opus' : 'audio/mp4',
                         ptt: msgType === 'pttMessage'
-                    });
-                }
-                else if (msgType === 'documentMessage') {
-                    // Convert document to status (shows as document)
-                    statusContent.push({
-                        type: 'document',
-                        media: buffer,
-                        mimetype: quotedMsg.message[msgType].mimetype,
-                        fileName: quotedMsg.message[msgType].fileName || 'document',
-                        caption: caption || ""
-                    });
+                    };
                 }
                 else {
-                    return reply("❌ Unsupported media type! Please reply to an image, video, audio, or document.");
+                    return reply("❌ Unsupported media type! Please reply to an image, video, or audio file.");
                 }
-                
-            } catch (downloadError) {
-                console.error("Download error:", downloadError);
-                return reply(`❌ Failed to download media: ${downloadError.message}`);
             }
         } 
         // If only text
         else if (caption) {
-            statusContent.push({
-                type: 'text',
+            messageContent = {
                 text: caption
-            });
+            };
         }
         
-        // Upload as status
-        try {
-            // Send status update
-            await conn.sendMessage(
-                'status@broadcast', 
-                statusContent
-            );
-            
-            // Success message
-            await reply("✅ Status uploaded successfully!");
-            
-            // Success reaction
-            await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
-            
-        } catch (statusError) {
-            console.error("Status upload error:", statusError);
-            reply(`❌ Failed to upload status: ${statusError.message}`);
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        }
+        // Send as status with proper options
+        await conn.sendMessage(statusJid, messageContent, { 
+            backgroundColor: "#FF0000", // Background color for text status
+            font: 0, // Font for text status (0 = system font)
+            statusJidList: [myJid], // List of JIDs that will receive this status (your own JID)
+            broadcast: true // Enable broadcast mode
+        });
+        
+        // Success message
+        await reply("✅ Status uploaded successfully!");
+        
+        // Success reaction
+        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
         
     } catch (error) {
-        console.error("My Status Error:", error);
+        console.error("Status Upload Error:", error);
         reply(`❌ Error: ${error.message}`);
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
     }
