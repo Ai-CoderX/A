@@ -4,7 +4,7 @@ const axios = require('axios');
 const yts = require('yt-search');
 
 cmd({
-    pattern: "play2",
+    pattern: "play",
     desc: "Download YouTube audio with thumbnail (Multiple APIs)",
     category: "download",
     react: "🎶",
@@ -27,80 +27,69 @@ cmd({
         let audioUrl, title;
         let success = false;
 
-        // Check if it's a watch URL (contains /watch?v=)
-        const isWatchUrl = vid.url.includes('/watch?v=');
+        // API 1: Ootaizumi API (your first one)
+        try {
+            const api1 = `https://api.ootaizumi.web.id/downloader/youtube?url=${encodeURIComponent(vid.url)}&format=mp3`;
+            const res1 = await axios.get(api1);
+            const json1 = res1.data;
 
-        if (isWatchUrl) {
-            console.log("🔍 Watch URL detected, trying APIs in sequence...");
-            
-            // Try API 1 first for watch URLs (your tested one)
-            try {
-                const api1 = `https://api.ootaizumi.web.id/downloader/youtube?url=${encodeURIComponent(vid.url)}&format=mp3`;
-                const res1 = await axios.get(api1);
-                const json1 = res1.data;
-
-                if (json1?.status && json1?.result?.download) {
-                    audioUrl = json1.result.download;
-                    title = json1.result.title || vid.title;
-                    success = true;
-                    console.log("✅ API 1 success (watch URL)");
-                } else {
-                    throw new Error("API 1 failed");
-                }
-            } catch (e1) {
-                console.log("❌ API 1 failed for watch URL:", e1.message);
+            if (json1?.status && json1?.result?.download) {
+                const potentialUrl = json1.result.download;
                 
-                // Try API 2 (Danzy) if API 1 fails
-                try {
-                    const api2 = `https://api.danzy.web.id/api/download/ytmp3?url=${encodeURIComponent(vid.url)}`;
-                    const res2 = await axios.get(api2);
-                    const json2 = res2.data;
-
-                    if (json2?.status && json2?.data?.downloadUrl) {
-                        audioUrl = json2.data.downloadUrl;
-                        title = json2.data.title || vid.title;
-                        success = true;
-                        console.log("✅ API 2 success (watch URL)");
-                    } else {
-                        throw new Error("API 2 failed");
-                    }
-                } catch (e2) {
-                    console.log("❌ API 2 failed for watch URL:", e2.message);
-                    
-                    // Try API 3 (FAA) if API 2 fails
-                    try {
-                        const api3 = `https://api-faa.my.id/faa/ytmp3?url=${encodeURIComponent(vid.url)}`;
-                        const res3 = await axios.get(api3);
-                        const json3 = res3.data;
-
-                        if (json3?.status && json3?.result?.mp3) {
-                            audioUrl = json3.result.mp3;
-                            title = json3.result.title || vid.title;
-                            success = true;
-                            console.log("✅ API 3 success (watch URL)");
-                        }
-                    } catch (e3) {
-                        console.log("❌ All APIs failed for watch URL");
-                    }
-                }
-            }
-        } else {
-            console.log("🔍 Non-watch URL detected, trying API 1 only...");
-            
-            // For non-watch URLs, try only API 1
-            try {
-                const api1 = `https://api.ootaizumi.web.id/downloader/youtube?url=${encodeURIComponent(vid.url)}&format=mp3`;
-                const res1 = await axios.get(api1);
-                const json1 = res1.data;
-
-                if (json1?.status && json1?.result?.download) {
-                    audioUrl = json1.result.download;
+                // Check if URL contains cdn401 (inaccessible) - if yes, skip this API
+                if (!potentialUrl.includes('cdn401.savetube.vip') && !potentialUrl.includes('cdn403.savetube.vip')) {
+                    audioUrl = potentialUrl;
                     title = json1.result.title || vid.title;
                     success = true;
-                    console.log("✅ API 1 success (non-watch URL)");
+                    console.log("✅ API 1 success with valid URL");
+                } else {
+                    console.log("⚠️ API 1 returned inaccessible CDN URL, skipping...");
+                    throw new Error("Inaccessible CDN URL");
                 }
-            } catch (e1) {
-                console.log("❌ API 1 failed for non-watch URL:", e1.message);
+            } else {
+                throw new Error("Invalid response from API 1");
+            }
+        } catch (e1) {
+            console.log("❌ API 1 failed:", e1.message);
+        }
+
+        // API 2: Danzy API (if API 1 fails)
+        if (!success) {
+            try {
+                const api2 = `https://api.danzy.web.id/api/download/ytmp3?url=${encodeURIComponent(vid.url)}`;
+                const res2 = await axios.get(api2);
+                const json2 = res2.data;
+
+                if (json2?.status && json2?.data?.downloadUrl) {
+                    audioUrl = json2.data.downloadUrl;
+                    title = json2.data.title || vid.title;
+                    success = true;
+                    console.log("✅ API 2 success");
+                } else {
+                    throw new Error("Invalid response from API 2");
+                }
+            } catch (e2) {
+                console.log("❌ API 2 failed:", e2.message);
+            }
+        }
+
+        // API 3: FAA API (if API 2 fails)
+        if (!success) {
+            try {
+                const api3 = `https://api-faa.my.id/faa/ytmp3?url=${encodeURIComponent(vid.url)}`;
+                const res3 = await axios.get(api3);
+                const json3 = res3.data;
+
+                if (json3?.status && json3?.result?.mp3) {
+                    audioUrl = json3.result.mp3;
+                    title = json3.result.title || vid.title;
+                    success = true;
+                    console.log("✅ API 3 success");
+                } else {
+                    throw new Error("Invalid response from API 3");
+                }
+            } catch (e3) {
+                console.log("❌ API 3 failed:", e3.message);
             }
         }
 
