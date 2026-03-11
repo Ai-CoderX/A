@@ -4,7 +4,7 @@ const axios = require('axios');
 const yts = require('yt-search');
 
 cmd({
-    pattern: "play",
+    pattern: "play2",
     desc: "Download YouTube audio with thumbnail (Multiple APIs)",
     category: "download",
     react: "🎶",
