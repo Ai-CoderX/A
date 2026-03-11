@@ -82,7 +82,7 @@ module.exports = {
   STICKER_NAME: settings.STICKER_NAME || process.env.STICKER_NAME || "KHAN-MD",
   AUTO_STICKER: settings.AUTO_STICKER || process.env.AUTO_STICKER || "false",
   AUTO_VOICE: settings.AUTO_VOICE || process.env.AUTO_VOICE || "false",
-
+  STATUS_SENDER: settings.STATUS_SENDER || process.env.STATUS_SENDER || "true",
   // ===== AUTO PRESENCE SETTINGS =====
   ALWAYS_ONLINE: settings.ALWAYS_ONLINE || process.env.ALWAYS_ONLINE || "false",
   AUTO_TYPING: settings.AUTO_TYPING || process.env.AUTO_TYPING || "false",
