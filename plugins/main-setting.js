@@ -162,8 +162,8 @@ cmd({
     }
 
     // Update config
-    config.MENU_IMAGE_URL = imageUrl;
-    process.env.MENU_IMAGE_URL = imageUrl;
+    config.BOT_MEDIA_URL = imageUrl;
+    process.env.BOT_MEDIA_URL = imageUrl;
 
     await reply(`✅ Bot image updated.\n\n*New URL:* ${imageUrl}`);
   } catch (err) {
