@@ -97,7 +97,7 @@ module.exports = {
   // ===== MEDIA & AUTOMATION =====
   MENTION_REPLY: settings.MENTION_REPLY || process.env.MENTION_REPLY || "false",
   MENU_IMAGE_URL: settings.MENU_IMAGE_URL || process.env.MENU_IMAGE_URL || "https://files.catbox.moe/7zfdcq.jpg",
-  BOT_MEDIA_URL: settings.BOT_MEDIA_URL || process.env.BOT_MEDIA_URL || "https://files.catbox.moe/7zfdcq.jpg",
+  BOT_MEDIA_URL: settings.BOT_MEDIA_URL || process.env.BOT_MEDIA_URL || "https://files.catbox.moe/6zd0ru.jpg",
   MENU_AUDIO_URL: settings.MENU_AUDIO_URL || process.env.MENU_AUDIO_URL || 'https://files.catbox.moe/xv42ur.mp3',
   AUTO_DOWNLOADER: settings.AUTO_DOWNLOADER || process.env.AUTO_DOWNLOADER || "false",
   
