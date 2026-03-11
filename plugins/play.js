@@ -36,15 +36,16 @@ cmd({
             if (json1?.status && json1?.result?.download) {
                 const potentialUrl = json1.result.download;
                 
-                // Check if URL contains cdn401 (inaccessible) - if yes, skip this API
-                if (!potentialUrl.includes('cdn401.savetube.vip') && !potentialUrl.includes('cdn403.savetube.vip')) {
+                // Check if URL contains cdn401 (inaccessible) - ONLY skip cdn401, keep cdn403
+                if (potentialUrl.includes('cdn401.savetube.vip')) {
+                    console.log("⚠️ API 1 returned cdn401 (inaccessible), skipping to next API...");
+                    throw new Error("Inaccessible CDN URL (401)");
+                } else {
+                    // Accept cdn403 and any other working URLs
                     audioUrl = potentialUrl;
                     title = json1.result.title || vid.title;
                     success = true;
                     console.log("✅ API 1 success with valid URL");
-                } else {
-                    console.log("⚠️ API 1 returned inaccessible CDN URL, skipping...");
-                    throw new Error("Inaccessible CDN URL");
                 }
             } else {
                 throw new Error("Invalid response from API 1");
@@ -57,7 +58,11 @@ cmd({
         if (!success) {
             try {
                 const api2 = `https://api.danzy.web.id/api/download/ytmp3?url=${encodeURIComponent(vid.url)}`;
-                const res2 = await axios.get(api2);
+                const res2 = await axios.get(api2, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    }
+                });
                 const json2 = res2.data;
 
                 if (json2?.status && json2?.data?.downloadUrl) {
@@ -77,7 +82,11 @@ cmd({
         if (!success) {
             try {
                 const api3 = `https://api-faa.my.id/faa/ytmp3?url=${encodeURIComponent(vid.url)}`;
-                const res3 = await axios.get(api3);
+                const res3 = await axios.get(api3, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    }
+                });
                 const json3 = res3.data;
 
                 if (json3?.status && json3?.result?.mp3) {
