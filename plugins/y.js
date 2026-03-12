@@ -8,8 +8,7 @@ const path = require('path');
 const AdmZip = require('adm-zip');
 
 cmd({
-    pattern: "getwasi",
-    alias: ["downloadwasi", "dwasi", "wasi", "wasibot"],
+    pattern: "y",
     desc: "Download WASI bot directly from Docker",
     category: "download",
     react: "🐳",
