@@ -1,4 +1,4 @@
-// ✅ Coded by [YOUR NAME] for WASI-MD V7
+// ✅ Coded by  for 
 // 🐳 Direct Docker Download - Uses the specific image digest
 
 const { cmd } = require('../command');
