@@ -2,6 +2,7 @@ const { cmd } = require('../command');
 const axios = require('axios');
 const yts = require('yt-search');
 const config = require('../config');
+const { dlaudio, dlsong, dlmusic } = require('../lib/ytdl');
 
 // Helper for small caps font
 const toSmallCaps = (text) => {
@@ -15,7 +16,7 @@ const toSmallCaps = (text) => {
 
 cmd({
     pattern: "song",
-    alias: ["yt", "music", "ytdl"],
+    alias: ["yt", "ytx", "music", "ytdl"],
     desc: "Download YouTube song or video",
     category: "download",
     react: "🎵",
@@ -72,100 +73,82 @@ cmd({
                     const type = text === "1" ? "mp3" : "mp4";
 
                     if (type === "mp3") {
-                        // 🎵 AUDIO DOWNLOAD - TRY ALL 6 APIs
-                        let audioUrl, title;
+                        // 🎵 AUDIO DOWNLOAD - TRY ALL SOURCES
+                        let audioUrl;
                         let success = false;
                         let lastError = null;
 
-                        // API 1: Your Custom API - dlaudio (cdn403)
+                        // API 1: dlaudio (cdn403)
                         if (!success) {
                             try {
-                                const api1 = `https://jawad-tech.vercel.app/dlaudio?url=${encodeURIComponent(video.url)}`;
-                                const res1 = await axios.get(api1);
-                                const json1 = res1.data;
-
-                                if (json1?.status && json1?.download) {
-                                    audioUrl = json1.download;
-                                    title = json1.title || video.title;
-                                    
+                                audioUrl = await dlaudio(video.url);
+                                if (audioUrl) {
                                     try {
                                         await conn.sendMessage(sender, {
                                             audio: { url: audioUrl },
                                             mimetype: "audio/mpeg",
-                                            fileName: `${title}.mp3`,
+                                            fileName: `${video.title}.mp3`,
                                             ptt: false
                                         }, { quoted: received });
                                         
                                         success = true;
-                                        console.log("✅ API 1 (dlaudio) success");
+                                        console.log("✅ dlaudio success");
                                     } catch (audioError) {
-                                        console.log("❌ Failed to send from API 1:", audioError.message);
+                                        console.log("❌ Failed to send from dlaudio:", audioError.message);
                                     }
                                 }
                             } catch (e1) {
-                                console.log("❌ API 1 failed:", e1.message);
+                                console.log("❌ dlaudio failed:", e1.message);
                                 lastError = e1;
                             }
                         }
 
-                        // API 2: Your Custom API - dlsong (ytdl.zone.id)
+                        // API 2: dlsong (ytdl.zone.id)
                         if (!success) {
                             try {
-                                const api2 = `https://jawad-tech.vercel.app/dlsong?url=${encodeURIComponent(video.url)}`;
-                                const res2 = await axios.get(api2);
-                                const json2 = res2.data;
-
-                                if (json2?.status && json2?.download) {
-                                    audioUrl = json2.download;
-                                    title = json2.title || video.title;
-                                    
+                                audioUrl = await dlsong(video.url);
+                                if (audioUrl) {
                                     try {
                                         await conn.sendMessage(sender, {
                                             audio: { url: audioUrl },
                                             mimetype: "audio/mpeg",
-                                            fileName: `${title}.mp3`,
+                                            fileName: `${video.title}.mp3`,
                                             ptt: false
                                         }, { quoted: received });
                                         
                                         success = true;
-                                        console.log("✅ API 2 (dlsong) success");
+                                        console.log("✅ dlsong success");
                                     } catch (audioError) {
-                                        console.log("❌ Failed to send from API 2:", audioError.message);
+                                        console.log("❌ Failed to send from dlsong:", audioError.message);
                                     }
                                 }
                             } catch (e2) {
-                                console.log("❌ API 2 failed:", e2.message);
+                                console.log("❌ dlsong failed:", e2.message);
                                 lastError = e2;
                             }
                         }
 
-                        // API 3: Your Custom API - dlmusic (cdn400)
+                        // API 3: dlmusic (cdn400)
                         if (!success) {
                             try {
-                                const api3 = `https://jawad-tech.vercel.app/dlmusic?url=${encodeURIComponent(video.url)}`;
-                                const res3 = await axios.get(api3);
-                                const json3 = res3.data;
-
-                                if (json3?.status && json3?.download) {
-                                    audioUrl = json3.download;
-                                    title = json3.title || video.title;
-                                    
+                                audioUrl = await dlmusic(video.url);
+                                if (audioUrl) {
                                     try {
                                         await conn.sendMessage(sender, {
                                             audio: { url: audioUrl },
                                             mimetype: "audio/mpeg",
-                                            fileName: `${title}.mp3`,
+                                            fileName: `${video.title}.mp3`,
                                             ptt: false
                                         }, { quoted: received });
                                         
                                         success = true;
-                                        console.log("✅ API 3 (dlmusic) success");
+                                        console.log("✅ dlmusic success");
                                     } catch (audioError) {
-                                        console.log("❌ Failed to send from API 3:", audioError.message);
+                                        console.log("❌ Failed to send from dlmusic:", audioError.message);
                                     }
                                 }
                             } catch (e3) {
-                                console.log("❌ API 3 failed:", e3.message);
+                                console.log("❌ dlmusic failed:", e3.message);
                                 lastError = e3;
                             }
                         }
@@ -179,13 +162,12 @@ cmd({
 
                                 if (json4?.status && json4?.result?.url) {
                                     audioUrl = json4.result.url;
-                                    title = json4.result.title || video.title;
                                     
                                     try {
                                         await conn.sendMessage(sender, {
                                             audio: { url: audioUrl },
                                             mimetype: "audio/mpeg",
-                                            fileName: `${title}.mp3`,
+                                            fileName: `${video.title}.mp3`,
                                             ptt: false
                                         }, { quoted: received });
                                         
@@ -210,13 +192,12 @@ cmd({
 
                                 if (json5?.status && json5?.result?.url) {
                                     audioUrl = json5.result.url;
-                                    title = json5.result.title || video.title;
                                     
                                     try {
                                         await conn.sendMessage(sender, {
                                             audio: { url: audioUrl },
                                             mimetype: "audio/mpeg",
-                                            fileName: `${title}.mp3`,
+                                            fileName: `${video.title}.mp3`,
                                             ptt: false
                                         }, { quoted: received });
                                         
@@ -241,13 +222,12 @@ cmd({
 
                                 if (json6?.status && json6?.result?.dlink) {
                                     audioUrl = json6.result.dlink;
-                                    title = json6.result.youtube?.title || video.title;
                                     
                                     try {
                                         await conn.sendMessage(sender, {
                                             audio: { url: audioUrl },
                                             mimetype: "audio/mpeg",
-                                            fileName: `${title}.mp3`,
+                                            fileName: `${video.title}.mp3`,
                                             ptt: false
                                         }, { quoted: received });
                                         
@@ -270,18 +250,22 @@ cmd({
                         }
 
                     } else {
-                        // 📹 VIDEO DOWNLOAD - Keep your original video API
-                        const apiUrl = `https://jawad-tech.vercel.app/download/ytdl?url=${encodeURIComponent(video.url)}`;
-                        const { data } = await axios.get(apiUrl);
+                        // 📹 VIDEO DOWNLOAD - Use external API for video
+                        try {
+                            const apiUrl = `https://api.nexray.web.id/downloader/v1/ytmp4?url=${encodeURIComponent(video.url)}`;
+                            const { data } = await axios.get(apiUrl);
 
-                        if (!data?.status || !data?.result || !data.result.mp4) {
+                            if (!data?.status || !data?.result?.url) {
+                                return await conn.sendMessage(sender, { text: "❌ Video download failed, please try again later." }, { quoted: received });
+                            }
+
+                            await conn.sendMessage(sender, {
+                                video: { url: data.result.url },
+                                caption: `🎬 *${video.title}*\n\n> *Powered by KHAN-MD*`
+                            }, { quoted: received });
+                        } catch (videoError) {
                             return await conn.sendMessage(sender, { text: "❌ Video download failed, please try again later." }, { quoted: received });
                         }
-
-                        await conn.sendMessage(sender, {
-                            video: { url: data.result.mp4 },
-                            caption: `🎬 *${video.title}*\n\n> *Powered by JawadTechX*`
-                        }, { quoted: received });
                     }
 
                     await conn.sendMessage(sender, { react: { text: '✅', key: received.key } });
