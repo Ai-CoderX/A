@@ -1,9 +1,11 @@
 const { cmd } = require('../command');
 const axios = require('axios');
 const yts = require('yt-search');
+const { dlaudio, dlsong, dlmusic } = require('../lib/ytdl');
 
 cmd({
     pattern: "play",
+    alias: ["ytmp3", "play2", "yta"],
     desc: "Download YouTube audio with thumbnail",
     category: "download",
     react: "🎶",
@@ -23,21 +25,15 @@ cmd({
             caption: `- *AUDIO DOWNLOADER 🎧*\n╭━━❐━⪼\n┇๏ *Title* - ${vid.title}\n┇๏ *Duration* - ${vid.timestamp}\n┇๏ *Views* - ${vid.views.toLocaleString()}\n┇๏ *Author* - ${vid.author.name}\n┇๏ *Status* - Downloading...\n╰━━❑━⪼\n> *© Pᴏᴡᴇʀᴇᴅ Bʏ KHAN-MD ♡*`
         }, { quoted: mek });
 
-        let audioUrl, title;
+        let audioUrl, title = vid.title;
         let success = false;
         let lastError = null;
 
-        // API 1: Your Custom API - dlaudio (cdn403)
+        // API 1: dlaudio (cdn403)
         if (!success) {
             try {
-                const api1 = `https://jawad-tech.vercel.app/dlaudio?url=${encodeURIComponent(vid.url)}`;
-                const res1 = await axios.get(api1);
-                const json1 = res1.data;
-
-                if (json1?.status && json1?.download) {
-                    audioUrl = json1.download;
-                    title = json1.title || vid.title;
-                    
+                audioUrl = await dlaudio(vid.url);
+                if (audioUrl) {
                     try {
                         await conn.sendMessage(from, {
                             audio: { url: audioUrl },
@@ -46,29 +42,22 @@ cmd({
                         }, { quoted: mek });
                         
                         success = true;
-                        console.log("✅ API 1 (dlaudio) success");
+                        console.log("✅ dlaudio success");
                     } catch (audioError) {
-                        console.log("❌ Failed to send from API 1:", audioError.message);
-                        throw new Error("Audio send failed");
+                        console.log("❌ Failed to send from dlaudio:", audioError.message);
                     }
                 }
             } catch (e1) {
-                console.log("❌ API 1 failed:", e1.message);
+                console.log("❌ dlaudio failed:", e1.message);
                 lastError = e1;
             }
         }
 
-        // API 2: Your Custom API - dlsong (ytdl.zone.id)
+        // API 2: dlsong (ytdl.zone.id)
         if (!success) {
             try {
-                const api2 = `https://jawad-tech.vercel.app/dlsong?url=${encodeURIComponent(vid.url)}`;
-                const res2 = await axios.get(api2);
-                const json2 = res2.data;
-
-                if (json2?.status && json2?.download) {
-                    audioUrl = json2.download;
-                    title = json2.title || vid.title;
-                    
+                audioUrl = await dlsong(vid.url);
+                if (audioUrl) {
                     try {
                         await conn.sendMessage(from, {
                             audio: { url: audioUrl },
@@ -77,29 +66,22 @@ cmd({
                         }, { quoted: mek });
                         
                         success = true;
-                        console.log("✅ API 2 (dlsong) success");
+                        console.log("✅ dlsong success");
                     } catch (audioError) {
-                        console.log("❌ Failed to send from API 2:", audioError.message);
-                        throw new Error("Audio send failed");
+                        console.log("❌ Failed to send from dlsong:", audioError.message);
                     }
                 }
             } catch (e2) {
-                console.log("❌ API 2 failed:", e2.message);
+                console.log("❌ dlsong failed:", e2.message);
                 lastError = e2;
             }
         }
 
-        // API 3: Your Custom API - dlmusic (cdn400)
+        // API 3: dlmusic (cdn400)
         if (!success) {
             try {
-                const api3 = `https://jawad-tech.vercel.app/dlmusic?url=${encodeURIComponent(vid.url)}`;
-                const res3 = await axios.get(api3);
-                const json3 = res3.data;
-
-                if (json3?.status && json3?.download) {
-                    audioUrl = json3.download;
-                    title = json3.title || vid.title;
-                    
+                audioUrl = await dlmusic(vid.url);
+                if (audioUrl) {
                     try {
                         await conn.sendMessage(from, {
                             audio: { url: audioUrl },
@@ -108,14 +90,13 @@ cmd({
                         }, { quoted: mek });
                         
                         success = true;
-                        console.log("✅ API 3 (dlmusic) success");
+                        console.log("✅ dlmusic success");
                     } catch (audioError) {
-                        console.log("❌ Failed to send from API 3:", audioError.message);
-                        throw new Error("Audio send failed");
+                        console.log("❌ Failed to send from dlmusic:", audioError.message);
                     }
                 }
             } catch (e3) {
-                console.log("❌ API 3 failed:", e3.message);
+                console.log("❌ dlmusic failed:", e3.message);
                 lastError = e3;
             }
         }
@@ -129,7 +110,6 @@ cmd({
 
                 if (json4?.status && json4?.result?.url) {
                     audioUrl = json4.result.url;
-                    title = json4.result.title || vid.title;
                     
                     try {
                         await conn.sendMessage(from, {
@@ -142,7 +122,6 @@ cmd({
                         console.log("✅ API 4 (NexRay v1) success");
                     } catch (audioError) {
                         console.log("❌ Failed to send from API 4:", audioError.message);
-                        throw new Error("Audio send failed");
                     }
                 }
             } catch (e4) {
@@ -160,7 +139,6 @@ cmd({
 
                 if (json5?.status && json5?.result?.url) {
                     audioUrl = json5.result.url;
-                    title = json5.result.title || vid.title;
                     
                     try {
                         await conn.sendMessage(from, {
@@ -173,7 +151,6 @@ cmd({
                         console.log("✅ API 5 (NexRay regular) success");
                     } catch (audioError) {
                         console.log("❌ Failed to send from API 5:", audioError.message);
-                        throw new Error("Audio send failed");
                     }
                 }
             } catch (e5) {
@@ -191,7 +168,6 @@ cmd({
 
                 if (json6?.status && json6?.result?.dlink) {
                     audioUrl = json6.result.dlink;
-                    title = json6.result.youtube?.title || vid.title;
                     
                     try {
                         await conn.sendMessage(from, {
@@ -204,7 +180,6 @@ cmd({
                         console.log("✅ API 6 (Deline) success");
                     } catch (audioError) {
                         console.log("❌ Failed to send from API 6:", audioError.message);
-                        throw new Error("Audio send failed");
                     }
                 }
             } catch (e6) {
