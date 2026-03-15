@@ -1,4 +1,5 @@
-// KHAN-MD
+// KHAN-XMD
+
 const crypto = require('crypto');
 const config = require('./config');
 const axios = require("axios");
