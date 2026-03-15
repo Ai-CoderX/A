@@ -1,5 +1,4 @@
-// KHAN-XMD
-
+// KHAN-MD
 const crypto = require('crypto');
 const config = require('./config');
 const axios = require("axios");
@@ -91,56 +90,7 @@ const path = require("path");
 const readline = require("readline");
 const ownerNumber = ['923427582273']
 
-// ================ MEMORY MANAGEMENT ================
-// Monitor memory and restart at 400MB (Heroku limit 512MB)
-setInterval(() => {
-    const used = process.memoryUsage().rss / 1024 / 1024;
-    console.log(`[📊] Memory: ${Math.round(used)}MB / 512MB`);
-    if (used > 400) {
-        console.log('[⚠️] Memory critical! Restarting bot...');
-        process.exit(1);
-    }
-}, 10000);
-
-// Force garbage collection every 30 seconds
-setInterval(() => {
-    if (global.gc) {
-        global.gc();
-        console.log('[🧹] Garbage collection forced');
-    }
-}, 30000);
-
-// ================ TEMP DIRECTORY MANAGEMENT ================
-// System temp directory
-const tempDir = path.join(os.tmpdir(), "cache-temp");
-if (!fsSync.existsSync(tempDir)) {
-  fsSync.mkdirSync(tempDir, { recursive: true });
-}
-
-// Clear temp directory every 15 minutes
-const clearTempDir = () => {
-  fsSync.readdir(tempDir, (err, files) => {
-    if (err) {
-      console.error("[ ❌ ] Error clearing temp directory", { Error: err.message });
-      return;
-    }
-    let deleted = 0;
-    for (const file of files) {
-      try {
-        fsSync.unlinkSync(path.join(tempDir, file));
-        deleted++;
-      } catch (err) {
-        console.error("[ ❌ ] Error deleting temp file", { File: file, Error: err.message });
-      }
-    }
-    if (deleted > 0) {
-      console.log(`[🧹] Cleaned ${deleted} temp files`);
-    }
-  });
-};
-setInterval(clearTempDir, 15 * 60 * 1000); // Every 15 minutes
-
-// ================ SESSION CLEANER ================
+// Session and temp directory paths
 const sessionDir = path.join(__dirname, 'sessions');
 const credsPath = path.join(sessionDir, 'creds.json');
 
@@ -149,33 +99,74 @@ if (!fsSync.existsSync(sessionDir)) {
     fsSync.mkdirSync(sessionDir, { recursive: true });
 }
 
-// Clean session folder before connection opens (keep only creds.json)
-const cleanSessionFolder = () => {
-    try {
-        if (!fsSync.existsSync(sessionDir)) return;
-        
-        const files = fsSync.readdirSync(sessionDir);
-        let deleted = 0;
-        
-        for (const file of files) {
-            // Keep ONLY creds.json
-            if (file === 'creds.json') continue;
-            
-            const filePath = path.join(sessionDir, file);
-            fsSync.unlinkSync(filePath);
-            deleted++;
-        }
-        
-        if (deleted > 0) {
-            console.log(`[🧹] Cleaned ${deleted} old session files (kept creds.json only)`);
-        }
-    } catch (e) {
-        console.error("[❌] Error cleaning session folder:", e.message);
+// Temp directory management (keep original)
+const tempDir = path.join(os.tmpdir(), "cache-temp");
+if (!fsSync.existsSync(tempDir)) {
+  fsSync.mkdirSync(tempDir);
+}
+
+const clearTempDir = () => {
+  fsSync.readdir(tempDir, (err, files) => {
+    if (err) {
+      console.error("[ ❌ ] Error clearing temp directory", { Error: err.message });
+      return;
     }
+    for (const file of files) {
+      fsSync.unlink(path.join(tempDir, file), (err) => {
+        if (err) console.error("[ ❌ ] Error deleting temp file", { File: file, Error: err.message });
+      });
+    }
+  });
+};
+setInterval(clearTempDir, 5 * 60 * 1000);
+
+// Clear session folder except creds.json
+const clearSessionFolder = () => {
+  console.log("[🧹] Cleaning session folder (keeping creds.json)...");
+  
+  if (fsSync.existsSync(sessionDir)) {
+    fsSync.readdir(sessionDir, (err, files) => {
+      if (err) {
+        console.error("[ ❌ ] Error clearing session directory", { Error: err.message });
+        return;
+      }
+      
+      for (const file of files) {
+        // Keep creds.json and creds file
+        if (file === 'creds.json' || file === 'creds') {
+          continue;
+        }
+        
+        const filePath = path.join(sessionDir, file);
+        fsSync.unlink(filePath, (err) => {
+          if (err) console.error("[ ❌ ] Error deleting session file", { File: file, Error: err.message });
+        });
+      }
+      console.log("[✅] Session folder cleaned (creds.json preserved)");
+    });
+  }
 };
 
-// Clean every 30 minutes
-setInterval(cleanSessionFolder, 30 * 60 * 1000);
+// Clear both session (except creds) and temp together
+const clearSessionAndTemp = () => {
+  console.log("[🧹] Running combined session & temp cleanup...");
+  clearSessionFolder();
+  clearTempDir();
+};
+
+// Run combined cleanup every 30 minutes
+setInterval(clearSessionAndTemp, 30 * 60 * 1000);
+
+// Garbage collector every 30 seconds
+const garbageCollector = () => {
+  if (global.gc) {
+    global.gc();
+    console.log("[🗑️] Garbage collection ran at", new Date().toLocaleTimeString());
+  } else {
+    console.log("[⚠️] Garbage collection not available - run with --expose-gc flag");
+  }
+};
+setInterval(garbageCollector, 30 * 1000);
 
 // lid to pn
 async function lidToPhone(conn, lid) {
@@ -265,9 +256,6 @@ async function loadSession() {
 async function connectToWA() {
   console.log("[ 🟠 ] Connecting to WhatsApp");
   
-  // Clean session folder before connecting
-  cleanSessionFolder();
-  
   // Load session credentials
   const creds = await loadSession();
   
@@ -278,8 +266,8 @@ async function connectToWA() {
   // Get latest version
   const { version } = await fetchLatestBaileysVersion();
   
-  // Create connection (no global variable)
-  const conn = makeWASocket({
+  // Create connection
+  let conn = makeWASocket({
       logger: P({ level: 'silent' }),
       printQRInTerminal: !creds,
       browser: Browsers.macOS("Safari"),
@@ -296,10 +284,6 @@ async function connectToWA() {
     if (connection === 'close') {
         if (lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut) {
             console.log('[🔰] Connection lost, reconnecting in 5 seconds...');
-            
-            // Clean temp before reconnecting
-            clearTempDir();
-            
             setTimeout(() => {
                 connectToWA();
             }, 5000);
@@ -322,7 +306,7 @@ async function connectToWA() {
             console.error("[ ❌ ] Error loading plugins", { Error: err.message });
         }
 
-        // Send connection message (only once)
+        // Send connection message
         try {
             await sleep(2000);
             
@@ -603,7 +587,7 @@ if (config.ANTI_CALL === "true") {
         console.error('[STATUS] Error in status handler:', error);
     }
   });
-
+  
   // ==================== MAIN MESSAGE HANDLER ====================
   conn.ev.on('messages.upsert', async(mek) => {
     try {
