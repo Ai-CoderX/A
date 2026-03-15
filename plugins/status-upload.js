@@ -8,50 +8,36 @@ cmd({
     react: "📱",
     filename: __filename
 }, async (conn, mek, m, { from, text, reply, isCreator, sender }) => {
-    // Check if user is owner
     if (!isCreator) return reply("❌ This command is only for owners!");
     
     try {
-        // Get the quoted message
         const quotedMsg = m.quoted;
-        
-        // Get mime type properly
         const mimeType = quotedMsg ? (quotedMsg.msg || quotedMsg).mimetype || '' : '';
-        
-        // Get caption/text
         const caption = text?.trim() || "";
         
-        // Check if there's content to send
         if (!quotedMsg && !caption) {
             return reply(
                 `⚠️ Reply to media or provide text!\n\n` +
                 `Examples:\n` +
                 `• .status Hello everyone\n` +
-                `• Reply to an image with: .status\n` +
-                `• Reply to video/audio with: .status`
+                `• Reply to an image with: .status`
             );
         }
         
-        // Send loading reaction
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
         
-        // Your status broadcast ID (personal status)
         const statusJid = 'status@broadcast';
         
-        // Your own JID in the format needed for statusJidList
-        const myJid = sender.includes(':') ? sender.split(':')[0] + '@s.whatsapp.net' : sender;
+        // Format JID properly - use sender as is, WhatsApp handles the format
+        const myJid = sender;
         
         let messageContent = {};
         
-        // If there's quoted media
         if (quotedMsg) {
-            // Download media
             const mediaBuffer = await quotedMsg.download();
             if (!mediaBuffer) throw new Error("Failed to download media");
             
-            // Handle different media types based on mimeType
             if (mimeType.startsWith('image/')) {
-                // Image status
                 messageContent = {
                     image: mediaBuffer,
                     caption: caption || "",
@@ -59,7 +45,6 @@ cmd({
                 };
             } 
             else if (mimeType.startsWith('video/')) {
-                // Video status
                 messageContent = {
                     video: mediaBuffer,
                     caption: caption || "",
@@ -67,9 +52,7 @@ cmd({
                 };
             } 
             else if (mimeType.startsWith('audio/')) {
-                // Audio status (voice note)
                 const isPTT = quotedMsg.message?.audioMessage?.ptt || false;
-                
                 messageContent = {
                     audio: mediaBuffer,
                     mimetype: isPTT ? 'audio/ogg; codecs=opus' : 'audio/mp4',
@@ -77,7 +60,6 @@ cmd({
                 };
             }
             else {
-                // Try to detect by message type as fallback
                 const msgType = Object.keys(quotedMsg.message || {})[0];
                 
                 if (msgType === 'imageMessage') {
@@ -102,29 +84,37 @@ cmd({
                     };
                 }
                 else {
-                    return reply("❌ Unsupported media type! Please reply to an image, video, or audio file.");
+                    return reply("❌ Unsupported media type!");
                 }
             }
+            
+            // Add contextInfo matching the pattern from your message
+            messageContent.contextInfo = {
+                remoteJid: 'status@broadcast',
+                participant: myJid,
+                quotedType: 'EXPLICIT'
+            };
         } 
-        // If only text
         else if (caption) {
             messageContent = {
-                text: caption
+                text: caption,
+                contextInfo: {
+                    remoteJid: 'status@broadcast',
+                    participant: myJid,
+                    quotedType: 'EXPLICIT'
+                }
             };
         }
         
-        // Send as status with proper options
-        await conn.sendMessage(statusJid, messageContent, { 
-            backgroundColor: "#FF0000", // Background color for text status
-            font: 0, // Font for text status (0 = system font)
-            statusJidList: [myJid], // List of JIDs that will receive this status (your own JID)
-            broadcast: true // Enable broadcast mode
+        // Send as status with proper structure
+        await conn.sendMessage(statusJid, messageContent, {
+            backgroundColor: "#FF0000",
+            font: 0,
+            statusJidList: [myJid, myJid], // Twice for self-view
+            broadcast: true
         });
         
-        // Success message
         await reply("✅ Status uploaded successfully!");
-        
-        // Success reaction
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
         
     } catch (error) {
