@@ -58,7 +58,9 @@ const {
     removeLinkWarning,
     getWarning,
     addWarning,
-    clearWarning
+    clearWarning,
+    lidToPhone,
+    cleanPN
 } = require('./lib');        
 
 // Helper function for rate limiting
@@ -145,26 +147,6 @@ const clearSessionFolder = () => {
 
 // Run session cleanup every 1 hour
 setInterval(clearSessionFolder, 60 * 60 * 1000);
-
-// lid to pn
-async function lidToPhone(conn, lid) {
-    try {
-        if (!lid) return '';
-        const pn = await conn.signalRepository.lidMapping.getPNForLID(lid);
-        if (pn) {
-            return cleanPN(pn);
-        }
-        return lid.split("@")[0];
-    } catch (e) {
-        return lid ? lid.split("@")[0] : '';
-    }
-}
-
-// cleanPn
-function cleanPN(pn) {
-    if (!pn) return '';
-    return pn.split(":")[0];
-}
 
 // Express server
 const express = require("express");
@@ -506,9 +488,7 @@ async function connectToWA() {
 
       // =========================================
       
-      const m = await sms(conn, mek).catch(() => null);
-      if (!m) return;
-      
+      const m = sms(conn, mek)
       const content = JSON.stringify(mek.message)
       const from = mek.key.remoteJid
       const isReact = m.message && m.message.reactionMessage ? true : false
