@@ -58,9 +58,7 @@ const {
     removeLinkWarning,
     getWarning,
     addWarning,
-    clearWarning,
-    lidToPhone,
-    cleanPN
+    clearWarning
 } = require('./lib');        
 
 // Helper function for rate limiting
