@@ -1,3 +1,4 @@
+
 // KHAN-MD - UNSTOPPABLE VERSION
 const crypto = require('crypto');
 const config = require('./config');
@@ -58,9 +59,7 @@ const {
     removeLinkWarning,
     getWarning,
     addWarning,
-    clearWarning,
-    lidToPhone,
-    cleanPN
+    clearWarning
 } = require('./lib');        
 
 // Helper function for rate limiting
@@ -87,16 +86,8 @@ const { File } = require('megajs');
 
 const ownerNumber = ['923427582273']
 
-// Session directory paths
-const sessionDir = path.join(__dirname, 'sessions');
-const credsPath = path.join(sessionDir, 'creds.json');
 
-// Create session directory if it doesn't exist
-if (!fsSync.existsSync(sessionDir)) {
-    fsSync.mkdirSync(sessionDir, { recursive: true });
-}
-
-// Temp directory management (DO NOT MODIFY)
+// Temp directory management
 const tempDir = path.join(os.tmpdir(), "cache-temp");
 if (!fsSync.existsSync(tempDir)) {
   fsSync.mkdirSync(tempDir);
@@ -115,38 +106,27 @@ const clearTempDir = () => {
     }
   });
 };
-// Clear temp every 20 minutes
-setInterval(clearTempDir, 20 * 60 * 1000);
+setInterval(clearTempDir, 5 * 60 * 1000);
 
-// Clear session folder except creds.json (every 1 hour)
-const clearSessionFolder = () => {
-  console.log("[🧹] Cleaning session folder (keeping creds.json)...");
-  
-  if (fsSync.existsSync(sessionDir)) {
-    fsSync.readdir(sessionDir, (err, files) => {
-      if (err) {
-        console.error("[ ❌ ] Error clearing session directory", { Error: err.message });
-        return;
-      }
-      
-      for (const file of files) {
-        // Keep creds.json and creds file
-        if (file === 'creds.json' || file === 'creds') {
-          continue;
+// lid to pn
+async function lidToPhone(conn, lid) {
+    try {
+        const pn = await conn.signalRepository.lidMapping.getPNForLID(lid);
+        if (pn) {
+            return cleanPN(pn);
         }
-        
-        const filePath = path.join(sessionDir, file);
-        fsSync.unlink(filePath, (err) => {
-          if (err) console.error("[ ❌ ] Error deleting session file", { File: file, Error: err.message });
-        });
-      }
-      console.log("[✅] Session folder cleaned (creds.json preserved)");
-    });
-  }
-};
+        return lid.split("@")[0];
+    } catch (e) {
+        return lid.split("@")[0];
+    }
+}
 
-// Run session cleanup every 1 hour
-setInterval(clearSessionFolder, 60 * 60 * 1000);
+// cleanPn
+function cleanPN(pn) {
+    return pn.split(":")[0];
+}
+
+
 
 // Express server
 const express = require("express");
@@ -171,6 +151,17 @@ app.listen(port, () =>
 );
 
 //===================SESSION-AUTH (SUPPORTS BOTH MEGA AND BASE64)============================
+
+// Session directory paths
+const sessionDir = path.join(__dirname, 'sessions');
+const credsPath = path.join(sessionDir, 'creds.json');
+
+// Create session directory if it doesn't exist
+if (!fsSync.existsSync(sessionDir)) {
+    fsSync.mkdirSync(sessionDir, { recursive: true });
+}
+
+
 async function loadSession() {
     try {
         if (!config.SESSION_ID) {
@@ -255,7 +246,7 @@ async function connectToWA() {
       logger: P({ level: 'silent' }),
       printQRInTerminal: !creds,
       browser: Browsers.macOS("Safari"),
-      syncFullHistory: false,
+      syncFullHistory: true,
       auth: state,
       version,
       getMessage: async () => ({})
@@ -1325,11 +1316,8 @@ async function getSizeMedia(buffer) {
   return buffer.length;
 }
 
-// Remove the old error handlers as requested
-// process.on("uncaughtException", ...) - REMOVED
-// process.on("unhandledRejection", ...) - REMOVED
-
 // Start the bot
 setTimeout(() => {
   connectToWA();
 }, 4000);
+
