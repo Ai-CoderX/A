@@ -1,6 +1,7 @@
 // jawad tech
 const { cmd } = require('../command');
 const axios = require('axios');
+const { Readable } = require('stream');
 
 cmd({
     pattern: "surah",
@@ -17,23 +18,28 @@ cmd({
             return await reply("❌ Invalid surah number! Use 1-114");
         }
 
-        // Stream directly from URL
         const audioUrl = `https://cdn.islamic.network/quran/audio-surah/128/ar.alafasy/${surahNumber}.mp3`;
         
-        // Get stream from axios
+        // Get the stream
         const response = await axios({
             method: 'GET',
             url: audioUrl,
             responseType: 'stream'
         });
 
-        // Send as DOCUMENT instead of audio (bypasses WhatsApp media limits)
+        // Add metadata to the stream
+        const stream = response.data;
+        stream._readableState = stream._readableState || {};
+        stream.url = audioUrl;
+
+        // Send as DOCUMENT (better for long audio)
         await conn.sendMessage(from, {
-            document: response.data,
+            document: stream,
             mimetype: "audio/mpeg",
-            fileName: `Surah_${surahNumber}.mp3`,
-            caption: `📖 *Surah ${surahNumber}*`
-        }, { quoted: mek });
+            fileName: `Surah_${surahNumber}.mp3`
+        }, { 
+            quoted: mek 
+        });
 
         // Success reaction
         await conn.sendMessage(from, { 
