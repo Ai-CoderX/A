@@ -76,7 +76,7 @@ cmd({
         // Step 1 — send image message
         await conn.sendMessage(from, {
             image: { url: "https://files.catbox.moe/qfi0h5.jpg" },
-            caption: `✨ *Pairing Code For KHAN-MD* ⚡\n\nA notification has been sent to your WhatsApp. Please check your phone and copy this code to pair it and get your *KHAN-MD* session ID.\n\n*🔢 Pairing Code:* *${pairingCode}*\n\n> *Copy it from below message 👇🏻*`
+            caption: `*Pairing Code For KHAN-MD* ⚡\n\nA notification has been sent to your WhatsApp. Please check your phone and copy this code to pair it and get your *KHAN-MD* session ID.\n\n*🔢 Pairing Code:* *${pairingCode}*\n\n> *Copy it from below message 👇🏻*`
         }, { quoted: m });
 
         // Step 2 — Wait for 2 seconds (to ensure order)
