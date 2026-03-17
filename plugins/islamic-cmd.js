@@ -36,6 +36,7 @@ cmd({
         await conn.sendMessage(from, {
             audio: stream,
             mimetype: "audio/mpeg",
+            ptt: true, // This makes it a voice note!
             fileName: `${surahNumber}.mp3`
         }, { 
             quoted: mek,
