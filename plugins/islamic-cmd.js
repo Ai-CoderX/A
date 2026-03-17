@@ -1,6 +1,6 @@
 // jawad tech
 const { cmd } = require('../command');
-const { getStreamFromUrl } = require('../lib/stream'); // Import from stream.js
+const axios = require('axios');
 
 cmd({
     pattern: "surah",
@@ -18,19 +18,20 @@ cmd({
             return await reply("❌ Invalid surah number! Use 1-114");
         }
 
-        // Stream and send directly
+        // Stream directly from URL
         const audioUrl = `https://cdn.islamic.network/quran/audio-surah/128/ar.alafasy/${surahNumber}.mp3`;
         
-        // Get stream and send immediately
-        const stream = await getStreamFromUrl(audioUrl);
-        
-        if (!stream) {
-            return await reply("❌ Failed to stream surah audio");
-        }
+        // Get stream directly from axios
+        const response = await axios({
+            method: 'GET',
+            url: audioUrl,
+            responseType: 'stream',
+            timeout: 30000
+        });
 
-        // Send audio directly using stream
+        // Send audio directly using the stream
         await conn.sendMessage(from, {
-            audio: stream,
+            audio: response.data, // This is the stream
             mimetype: "audio/mpeg",
             fileName: `Surah_${surahNumber}.mp3`
         }, { quoted: mek });
