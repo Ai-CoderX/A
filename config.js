@@ -126,31 +126,11 @@ GOODBYE: settings.GOODBYE || process.env.GOODBYE || "false",
 ADMIN_ACTION: settings.ADMIN_ACTION || process.env.ADMIN_ACTION || "false",
 
 // Custom Welcome Message with your format
-WELCOME_MSG: settings.WELCOME_MSG || process.env.WELCOME_MSG || `*╭ׂ┄─ׅ─ׂ┄─ׂ┄─ׅ─ׂ┄─ׂ┄─ׅ─ׂ┄──*
-*│  ̇─̣─̇─̣〘 ωєℓ¢σмє 〙̣─̇─̣─̇*
-*├┅┅┅┅┈┈┈┈┈┈┈┈┈┅┅┅◆*
-*│❀ нєу* @user
-*│❀ gʀσᴜᴘ* @group
-*├┅┅┅┅┈┈┈┈┈┈┈┈┈┅┅┅◆*
-*│● ѕтαу ѕαfє αɴ∂ fσℓℓσω*
-*│● тнє gʀσυᴘѕ ʀᴜℓєѕ!*
-*│● ᴊσιɴє∂* @count
-*│● ©ᴘσωєʀє∂ ву @bot*
-*╰┉┉┉┉┈┈┈┈┈┈┈┈┉┉┉᛫᛭*`,
+WELCOME_MESSAGE: settings.WELCOME_MESSAGE || process.env.WELCOME_MESSAGE || "*_@user joined the group, welcome! 🎉_*",
 
 // Custom Goodbye Message with your format
-GOODBYE_MSG: settings.GOODBYE_MSG || process.env.GOODBYE_MSG || `*╭ׂ┄─ׅ─ׂ┄─ׂ┄─ׅ─ׂ┄─ׂ┄─ׅ─ׂ┄──*
-*│  ̇─̣─̇─̣〘 gσσ∂вує 〙̣─̇─̣─̇*
-*├┅┅┅┅┈┈┈┈┈┈┈┈┈┅┅┅◆*
-*│❀ ᴜѕєʀ* @user
-*│● мємвєʀѕ ιѕ ℓєfт тнє gʀσᴜᴘ*
-*│● мємвєʀs* @count
-*│● ©ᴘσωєʀє∂ ву @bot*
-*╰┉┉┉┉┈┈┈┈┈┈┈┉┉┉᛫᛭*`,
+GOODBYE_MESSAGE: settings.GOODBYE_MESSAGE || process.env.GOODBYE_MESSAGE || "*_@user has left the group, we will miss them! 👋_*",
 
-// Image Settings (leave empty to use group image)
-  WELCOME_IMAGE: settings.WELCOME_IMAGE || process.env.WELCOME_IMAGE || "",
-  GOODBYE_IMAGE: settings.GOODBYE_IMAGE || process.env.GOODBYE_IMAGE || "",
   VERSION: settings.VERSION || process.env.VERSION || "10.0 Bᴇᴛᴀ",
   TIMEZONE: settings.TIMEZONE || process.env.TIMEZONE || "Asia/Karachi",
 };
