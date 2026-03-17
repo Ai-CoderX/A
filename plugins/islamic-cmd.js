@@ -6,7 +6,7 @@ const { Readable } = require('stream');
 cmd({
     pattern: "surah",
     desc: "Play Quran surah audio by number (1-114)",
-    category: "islamic",
+    category: "download",
     react: "📖",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
@@ -36,7 +36,7 @@ cmd({
         await conn.sendMessage(from, {
             document: stream,
             mimetype: "audio/mpeg",
-            fileName: `Surah_${surahNumber}.mp3`
+            fileName: `SURAH-${surahNumber}.mp3`
         }, { 
             quoted: mek 
         });
