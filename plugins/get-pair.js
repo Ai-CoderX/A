@@ -54,16 +54,12 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, quoted, body, isCmd, command, args, q, isGroup, senderNumber, reply }) => {
     try {
-        if (isGroup) {
-            return await reply("❌ This command only works in private chat. Please message me directly.");
-        }
-
         // React ⏳ while processing
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
         const phoneNumber = q ? q.trim().replace(/[^0-9]/g, '') : senderNumber.replace(/[^0-9]/g, '');
         if (!phoneNumber || phoneNumber.length < 10 || phoneNumber.length > 15) {
-            return await reply("❌ Invalid phone number format!\n\nPlease use: `.pair 923000000000`\n(Without + sign)");
+            return await reply("❌ Invalid phone number format!\n\nPlease use: `.pair2 923000000000`\n(Without + sign)");
         }
 
         // Fetch pairing code
