@@ -1,7 +1,6 @@
 // jawad tech
 const { cmd } = require('../command');
 const axios = require('axios');
-const { Readable } = require('stream');
 
 cmd({
     pattern: "surah",
@@ -18,34 +17,34 @@ cmd({
             return await reply("❌ Invalid surah number! Use 1-114");
         }
 
+        // Stream directly from URL
         const audioUrl = `https://cdn.islamic.network/quran/audio-surah/128/ar.alafasy/${surahNumber}.mp3`;
         
-        // Get the stream
+        // Get stream from axios
         const response = await axios({
             method: 'GET',
             url: audioUrl,
             responseType: 'stream'
         });
 
-        // Add metadata to the stream (this fixes the toString error)
-        const stream = response.data;
-        stream._readableState = stream._readableState || {};
-        stream.url = audioUrl; // Add URL for reference
-        
-        // Send with proper options
+        // Send as DOCUMENT instead of audio (bypasses WhatsApp media limits)
         await conn.sendMessage(from, {
-            audio: stream,
+            document: response.data,
             mimetype: "audio/mpeg",
-            ptt: true, // This makes it a voice note!
-            fileName: `${surahNumber}.mp3`
-        }, { 
-            quoted: mek,
-            // Add these options to help Baileys
-            media: stream
+            fileName: `Surah_${surahNumber}.mp3`,
+            caption: `📖 *Surah ${surahNumber}*`
+        }, { quoted: mek });
+
+        // Success reaction
+        await conn.sendMessage(from, { 
+            react: { text: '✅', key: m.key } 
         });
 
     } catch (e) {
-        console.error("Error:", e);
-        await reply("❌ Failed to send");
+        console.error("Error in .surah command:", e);
+        await reply("❌ Error occurred, please try again!");
+        await conn.sendMessage(from, { 
+            react: { text: '❌', key: m.key } 
+        });
     }
 });
