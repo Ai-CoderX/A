@@ -12,40 +12,30 @@ cmd({
     try {
         if (!q) return await reply("📖 Please provide a surah number!\n\nExample: .surah 1");
 
-        // Validate surah number
         const surahNumber = parseInt(q);
         if (isNaN(surahNumber) || surahNumber < 1 || surahNumber > 114) {
             return await reply("❌ Invalid surah number! Use 1-114");
         }
 
-        // Stream directly from URL
+        // Direct stream - no saving, no checking
         const audioUrl = `https://cdn.islamic.network/quran/audio-surah/128/ar.alafasy/${surahNumber}.mp3`;
         
-        // Get stream directly from axios
+        // Get the stream
         const response = await axios({
             method: 'GET',
             url: audioUrl,
-            responseType: 'stream',
-            timeout: 30000
+            responseType: 'stream'
         });
 
-        // Send audio directly using the stream
+        // Send it directly
         await conn.sendMessage(from, {
-            audio: response.data, // This is the stream
+            audio: response.data,
             mimetype: "audio/mpeg",
-            fileName: `Surah_${surahNumber}.mp3`
+            fileName: `${surahNumber}.mp3`
         }, { quoted: mek });
 
-        // Success reaction
-        await conn.sendMessage(from, { 
-            react: { text: '✅', key: m.key } 
-        });
-
     } catch (e) {
-        console.error("Error in .surah command:", e);
-        await reply("❌ Error occurred, please try again!");
-        await conn.sendMessage(from, { 
-            react: { text: '❌', key: m.key } 
-        });
+        console.error("Error:", e);
+        await reply("❌ Failed to send");
     }
 });
