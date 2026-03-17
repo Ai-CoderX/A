@@ -5,7 +5,7 @@ const { getStreamFromUrl } = require('../lib/stream'); // Import from stream.js
 cmd({
     pattern: "surah",
     desc: "Play Quran surah audio by number (1-114)",
-    category: "Islamic",
+    category: "islamic",
     react: "📖",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
