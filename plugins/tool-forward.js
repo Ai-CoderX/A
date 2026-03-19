@@ -1,3 +1,7 @@
+// Jawad TechX - KHAN XMD 
+// Native Forward Command 
+// Dont Remove Credit From File
+
 const { cmd } = require("../command");
 const { generateWAMessageFromContent } = require('@whiskeysockets/baileys');
 
@@ -34,24 +38,22 @@ cmd({
       );
     }
 
-    // Process JIDs - SUPPORT GROUP, PERSONAL, AND NEWSLETTER JIDs
+    // Process JIDs - SUPPORT BOTH GROUP AND PERSONAL JIDs
     const rawJids = jidInput.split(',').map(jid => jid.trim()).filter(jid => jid);
     const validJids = rawJids
       .map(jid => {
         // Check if it's a complete JID with suffix
         if (jid.includes('@')) {
           // Already a proper JID
-          if (jid.endsWith('@g.us') || jid.endsWith('@s.whatsapp.net') || jid.endsWith('@newsletter')) {
+          if (jid.endsWith('@g.us') || jid.endsWith('@s.whatsapp.net')) {
             // Extract numbers from JID if needed
             const numbers = jid.match(/\d+/g);
             if (!numbers || numbers.length === 0) return null;
             
             if (jid.endsWith('@g.us')) {
               return `${numbers.join('')}@g.us`;
-            } else if (jid.endsWith('@s.whatsapp.net')) {
+            } else {
               return `${numbers.join('')}@s.whatsapp.net`;
-            } else if (jid.endsWith('@newsletter')) {
-              return `${numbers.join('')}@newsletter`;
             }
           }
           return null;
@@ -71,8 +73,7 @@ cmd({
         "Provide JIDs like:\n" +
         "• `120363411055156472@g.us` (group)\n" +
         "• `1234567890@s.whatsapp.net` (personal)\n" +
-        "• `120363409607339372@newsletter` (newsletter)\n" +
-        "• `120363411055156472@g.us,1234567890@s.whatsapp.net,120363409607339372@newsletter` (multiple)\n" +
+        "• `120363411055156472@g.us,1234567890@s.whatsapp.net` (multiple)\n" +
         "• `120363411055156472` (numbers only = group)\n" +
         "Separate multiple with commas"
       );
@@ -134,9 +135,7 @@ cmd({
       } catch (error) {
         console.error(`Forward error to ${jid}:`, error.message);
         failedJids.push({
-          jid: jid.includes('@g.us') ? jid.replace('@g.us', '') : 
-               jid.includes('@s.whatsapp.net') ? jid.replace('@s.whatsapp.net', '') :
-               jid.replace('@newsletter', ''),
+          jid: jid.includes('@g.us') ? jid.replace('@g.us', '') : jid.replace('@s.whatsapp.net', ''),
           error: error.message.substring(0, 30)
         });
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -155,10 +154,8 @@ cmd({
     // Count types
     const groupCount = uniqueJids.filter(jid => jid.endsWith('@g.us')).length;
     const personalCount = uniqueJids.filter(jid => jid.endsWith('@s.whatsapp.net')).length;
-    const newsletterCount = uniqueJids.filter(jid => jid.endsWith('@newsletter')).length;
     report += `👥 Groups: ${groupCount}\n`;
     report += `👤 Personal: ${personalCount}\n`;
-    report += `📰 Newsletters: ${newsletterCount}\n`;
     
     if (failedJids.length > 0) {
       report += `\n❌ Failed (${failedJids.length}):\n`;
