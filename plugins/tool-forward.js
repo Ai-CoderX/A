@@ -1,7 +1,3 @@
-// Jawad TechX - KHAN XMD 
-// Native Forward Command 
-// Dont Remove Credit From File
-
 const { cmd } = require("../command");
 const { generateWAMessageFromContent } = require('@whiskeysockets/baileys');
 
