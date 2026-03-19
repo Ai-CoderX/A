@@ -1,3 +1,5 @@
+// KHAN MD 
+
 const { cmd } = require("../command");
 const { generateWAMessageFromContent } = require('@whiskeysockets/baileys');
 
