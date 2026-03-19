@@ -15,27 +15,6 @@ const BASE = api.https + api.domain1 + api.domain2 + api.tld + api.path;
 const REFERER = api.https + api.domain1 + api.domain2 + api.tld + "/generator";
 const ORIGIN = api.https + api.domain1 + api.domain2 + api.tld;
 
-// Strict cleanup function
-function strictCleanup(...instances) {
-    instances.forEach(instance => {
-        if (instance) {
-            // Clear all headers
-            if (instance.defaults) instance.defaults.headers = {};
-            
-            // Clear all interceptors
-            if (instance.interceptors) {
-                if (instance.interceptors.request) instance.interceptors.request.clear();
-                if (instance.interceptors.response) instance.interceptors.response.clear();
-            }
-            
-            // Delete all properties
-            for (let prop in instance) {
-                delete instance[prop];
-            }
-        }
-    });
-}
-
 cmd({
     pattern: "editimg",
     alias: ["edit", "imageedit"],
@@ -45,10 +24,7 @@ cmd({
     filename: __filename,
 }, async (conn, mek, m, { from, text, reply }) => {
     
-    // Declare all instances at top
-    let cookieGrabber = null;
-    let worker = null;
-    let uploadClient = null;
+    let client = null;
     
     try {
         const q = m.quoted ? m.quoted : m;
@@ -59,83 +35,62 @@ cmd({
 
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
         
-        // ===== STEP 1: Get fresh cookies =====
-        cookieGrabber = axios.create({
-            headers: {
-                "accept": "*/*",
-                "accept-language": "id-ID",
-                "user-agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36"
-            }
-        });
-        
-        await cookieGrabber.get(REFERER);
-        const cookies = cookieGrabber.defaults.headers?.Cookie || '';
-        
-        // STRICTLY CLEAN cookieGrabber NOW
-        strictCleanup(cookieGrabber);
-        cookieGrabber = null;
-        
-        // ===== STEP 2: Create worker =====
-        worker = axios.create({
+        // ===== CREATE ONE CLIENT WITH FRESH COOKIES =====
+        client = axios.create({
             headers: {
                 "accept": "*/*",
                 "accept-language": "id-ID",
                 "content-type": "application/json",
                 "origin": ORIGIN,
                 "referer": REFERER,
-                "user-agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36",
-                "Cookie": cookies
+                "user-agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36"
             }
         });
         
-        // ===== STEP 3: Upload =====
-        const mediaBuffer = await q.download();
+        // First visit to get cookies (this sets the cookies in client)
+        await client.get(REFERER);
         
-        const uploadRes = await worker.post(`${BASE}/get-upload-url`, {
+        // ===== USE SAME CLIENT FOR EVERYTHING =====
+        
+        // 1. Get upload URL
+        const uploadRes = await client.post(`${BASE}/get-upload-url`, {
             fileName: "image.jpg",
             contentType: "image/jpeg",
-            fileSize: mediaBuffer.length
+            fileSize: (await q.download()).length
         });
 
         if (!uploadRes.data.uploadUrl || !uploadRes.data.publicUrl) {
             throw new Error("Upload failed");
         }
 
-        // Use separate client for PUT upload
-        uploadClient = axios.create();
-        await uploadClient.put(uploadRes.data.uploadUrl, mediaBuffer, {
+        // 2. Upload image (using same client's cookies but different axios for PUT)
+        const mediaBuffer = await q.download();
+        await axios.put(uploadRes.data.uploadUrl, mediaBuffer, {
             headers: { "content-type": "image/jpeg" }
         });
-        
-        // CLEAN uploadClient immediately
-        strictCleanup(uploadClient);
-        uploadClient = null;
-        
-        const publicUrl = uploadRes.data.publicUrl;
-        
-        // ===== STEP 4: Generate =====
-        const generateRes = await worker.post(`${BASE}/generate-image`, {
+
+        // 3. Generate image (using SAME client)
+        const generateRes = await client.post(`${BASE}/generate-image`, {
             prompt: text,
             styleId: "realistic",
             mode: "image",
-            imageUrl: publicUrl,
-            imageUrls: [publicUrl],
+            imageUrl: uploadRes.data.publicUrl,
+            imageUrls: [uploadRes.data.publicUrl],
             numImages: 1,
             outputFormat: "png",
             model: "nano-banana"
         });
 
         if (!generateRes.data.taskId) throw new Error("Task creation failed");
-        const taskId = generateRes.data.taskId;
         
-        // ===== STEP 5: Wait for result =====
+        // 4. Wait for result (using SAME client)
         let resultUrl = null;
         let waiting = true;
         
         while (waiting) {
             await new Promise(r => setTimeout(r, 2500));
             
-            const statusRes = await worker.get(`${BASE}/generate-image/status?taskId=${taskId}`);
+            const statusRes = await client.get(`${BASE}/generate-image/status?taskId=${generateRes.data.taskId}`);
             
             if (statusRes.data.status === "completed" && statusRes.data.imageUrl) {
                 resultUrl = statusRes.data.imageUrl;
@@ -144,17 +99,7 @@ cmd({
                 throw new Error("Generation failed");
             }
         }
-        
-        // ===== STRICT CLEANUP BEFORE SENDING =====
-        // Clear cookies
-        if (worker && worker.defaults && worker.defaults.headers) {
-            delete worker.defaults.headers.Cookie;
-        }
-        
-        // Clean worker
-        strictCleanup(worker);
-        worker = null;
-        
+
         // Send result
         await conn.sendMessage(from, { 
             image: { url: resultUrl }, 
@@ -167,10 +112,9 @@ cmd({
         console.error("Error:", e);
         reply(`❌ Error: ${e.message}`);
     } finally {
-        // FINAL CLEANUP - kill everything
-        strictCleanup(cookieGrabber, worker, uploadClient);
-        cookieGrabber = null;
-        worker = null;
-        uploadClient = null;
+        // Cleanup
+        if (client) {
+            client = null;
+        }
     }
 });
