@@ -1,5 +1,3 @@
-// KHAN MD 
-
 const { cmd } = require("../command");
 const { generateWAMessageFromContent } = require('@whiskeysockets/baileys');
 
@@ -36,15 +34,12 @@ cmd({
       );
     }
 
-    // Process JIDs - SUPPORT GROUP, PERSONAL, AND NEWSLETTER JIDs
+    // Process JIDs
     const rawJids = jidInput.split(',').map(jid => jid.trim()).filter(jid => jid);
     const validJids = rawJids
       .map(jid => {
-        // Check if it's a complete JID with suffix
         if (jid.includes('@')) {
-          // Already a proper JID
           if (jid.endsWith('@g.us') || jid.endsWith('@s.whatsapp.net') || jid.endsWith('@newsletter')) {
-            // Extract numbers from JID if needed
             const numbers = jid.match(/\d+/g);
             if (!numbers || numbers.length === 0) return null;
             
@@ -57,27 +52,16 @@ cmd({
             }
           }
           return null;
-        } 
-        // If just numbers, assume it's a group JID
-        else if (/^\d+$/.test(jid)) {
+        } else if (/^\d+$/.test(jid)) {
           return `${jid}@g.us`;
         }
         return null;
       })
       .filter(jid => jid !== null)
-      .slice(0, 50); // Max 50 like other bot
+      .slice(0, 50);
 
     if (validJids.length === 0) {
-      return await reply(
-        "❌ No valid JIDs found\n" +
-        "Provide JIDs like:\n" +
-        "• `120363411055156472@g.us` (group)\n" +
-        "• `1234567890@s.whatsapp.net` (personal)\n" +
-        "• `120363409607339372@newsletter` (newsletter)\n" +
-        "• `120363411055156472@g.us,1234567890@s.whatsapp.net,120363409607339372@newsletter` (multiple)\n" +
-        "• `120363411055156472` (numbers only = group)\n" +
-        "Separate multiple with commas"
-      );
+      return await reply("❌ No valid JIDs found");
     }
 
     // Remove duplicates
@@ -89,28 +73,15 @@ cmd({
     let successCount = 0;
     const failedJids = [];
 
-    // Get the quoted message
-    const quotedMsg = message.quoted;
+    // Get the quoted message content from the original message's contextInfo
+    const quotedContent = message.msg?.contextInfo?.quotedMessage;
     
-    // Create message structure if needed
-    let messageContent = quotedMsg.message;
-    if (!messageContent) {
-      // Create message structure from quoted
-      const mtype = quotedMsg.mtype;
-      if (mtype && quotedMsg.msg) {
-        messageContent = {};
-        if (mtype === 'conversation') {
-          messageContent.conversation = quotedMsg.text;
-        } else {
-          const typeKey = mtype.replace('Message', '').toLowerCase();
-          messageContent[typeKey + 'Message'] = quotedMsg.msg;
-        }
-      }
+    if (!quotedContent) {
+      return await reply("❌ Could not extract quoted message content");
     }
 
-    if (!messageContent) {
-      return await reply("❌ Could not extract message content from quoted message");
-    }
+    // Create message structure for forwarding
+    const messageContent = { ...quotedContent };
 
     // Forward to each chat
     for (const [index, jid] of uniqueJids.entries()) {
@@ -122,7 +93,7 @@ cmd({
           { userJid: client.user.id }
         );
 
-        // Send using relayMessage for native forwarding
+        // Send using relayMessage
         await client.relayMessage(jid, forwardData.message, {
           messageId: forwardData.key.id
         });
@@ -155,10 +126,9 @@ cmd({
     let report = `✅ *Forward Complete*\n\n` +
                  `📤 Success: ${successCount}/${uniqueJids.length}\n`;
     
-    if (quotedMsg.mtype) {
-      const contentType = quotedMsg.mtype.replace('Message', '');
-      report += `📦 Content Type: ${contentType}\n`;
-    }
+    // Get content type from quotedContent keys
+    const contentType = Object.keys(quotedContent)[0] || 'unknown';
+    report += `📦 Content Type: ${contentType.replace('Message', '')}\n`;
     
     // Count types
     const groupCount = uniqueJids.filter(jid => jid.endsWith('@g.us')).length;
@@ -177,22 +147,13 @@ cmd({
     }
     
     if (rawJids.length > uniqueJids.length) {
-      report += `\n⚠️ Removed ${rawJids.length - uniqueJids.length} duplicate JIDs`;
-    }
-    
-    if (rawJids.length > 50) {
-      report += `\n⚠️ Limited to first 50 of ${rawJids.length} JIDs`;
+      report += `\n⚠️ Removed ${rawJids.length - uniqueJids.length} invalid/duplicate JIDs`;
     }
 
     await reply(report);
 
   } catch (error) {
     console.error("Forward Error:", error);
-    await reply(
-      `💢 Error: ${error.message.substring(0, 100)}\n\n` +
-      `Try:\n1. Make sure bot is admin in target groups\n` +
-      `2. Use recent messages (not too old)\n` +
-      `3. Check JID format`
-    );
+    await reply(`💢 Error: ${error.message.substring(0, 100)}`);
   }
 });
