@@ -5,7 +5,7 @@ cmd({
   pattern: "forward",
   alias: ["frd", "fwd"],
   desc: "Forward messages to groups using WhatsApp native method",
-  category: "owner",
+  category: "tools",
   filename: __filename
 }, async (client, message, match, { isCreator }) => {
   try {
