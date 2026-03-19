@@ -1,4 +1,4 @@
-// Jawad TechX 
+// Jawad Tech
 
 const { setPrefix } = require('../lib/prefix');
 const { cmd, commands } = require('../command');
