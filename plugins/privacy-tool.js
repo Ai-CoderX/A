@@ -164,27 +164,17 @@ cmd({
     pattern: "setname",
     desc: "Set your WhatsApp display name.",
     category: "setting",
-    react: "⚙️",
+    react: "👄",
     filename: __filename
 },
 async (conn, mek, m, { from, isCreator, reply, args }) => {
     if (!isCreator) return reply("❌ You are not the owner!");
 
-    // Ensure you have the display name argument
     const displayName = args.join(" ");
     if (!displayName) return reply("❌ Please provide a display name.");
 
     try {
-        // Ensure the session is loaded before trying to update
-        const { state, saveCreds } = await useMultiFileAuthState('path/to/auth/folder');
-        const conn = makeWASocket({
-            auth: state,
-            printQRInTerminal: true,
-        });
-
-        conn.ev.on('creds.update', saveCreds);
-
-        // Update display name after connection
+        // Use the existing connection (conn) - DON'T create new one!
         await conn.updateProfileName(displayName);
         reply(`✅ Your display name has been set to: ${displayName}`);
     } catch (err) {
