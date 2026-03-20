@@ -19,7 +19,7 @@ cmd({
     alias: ["yt", "ytx", "music", "ytdl"],
     desc: "Download YouTube song or video",
     category: "download",
-    react: "🎵",
+    react: "🎧",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
     try {
@@ -48,7 +48,7 @@ cmd({
 *┋ ⬡ 2* 📹 ${toSmallCaps('Video (MP4)')}
 *╰───────────────────⊷*
 
-> ${toSmallCaps('*Please Reply With 1 or 2')}*`;
+> ${toSmallCaps('*Please Reply With 1 or 2*')}`;
 
         const sent = await conn.sendMessage(from, {
             image: { url: video.thumbnail },
@@ -56,9 +56,9 @@ cmd({
         }, { quoted: mek });
 
         const msgId = sent.key.id;
-
-        // 🕒 Wait for user reply
-        conn.ev.on("messages.upsert", async (msgData) => {
+        
+        // Create listener function
+        const songListener = async (msgData) => {
             const received = msgData.messages[0];
             if (!received.message) return;
 
@@ -67,6 +67,9 @@ cmd({
             const replyToBot = received.message.extendedTextMessage?.contextInfo?.stanzaId === msgId;
 
             if (replyToBot) {
+                // Close event immediately
+                conn.ev.off("messages.upsert", songListener);
+                
                 await conn.sendMessage(sender, { react: { text: '⬇️', key: received.key } });
 
                 if (text === "1" || text === "2") {
@@ -275,7 +278,16 @@ cmd({
                     }, { quoted: received });
                 }
             }
-        });
+        };
+        
+        // Add listener
+        conn.ev.on("messages.upsert", songListener);
+        
+        // Auto cleanup after 15 seconds if no selection
+        setTimeout(() => {
+            conn.ev.off("messages.upsert", songListener);
+            console.log('🧹 Song listener cleaned up (timeout)');
+        }, 15000);
 
     } catch (e) {
         console.error(e);
