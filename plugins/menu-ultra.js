@@ -23,10 +23,8 @@ const toSmallCaps = (text) => {
 
 // Format category with your exact styles
 const formatCategory = (category, cmds) => {
-    // Filter out commands with empty or undefined patterns
     const validCmds = cmds.filter(cmd => cmd.pattern && cmd.pattern.trim() !== '');
-    
-    if (validCmds.length === 0) return ''; // Skip empty categories
+    if (validCmds.length === 0) return '';
     
     let title = `\n\`『 ${category.toUpperCase()} 』\`\n╭───────────────────⊷\n`;
     let body = validCmds.map(cmd => {
@@ -43,9 +41,8 @@ const formatMenuOptions = (categories) => {
     let optionNumber = 1;
     
     categories.forEach(cat => {
-        // Capitalize first letter of category and convert to small caps
         const displayName = toSmallCaps(cat.charAt(0).toUpperCase() + cat.slice(1));
-        const menuText = toSmallCaps(' Menu'); // Add "Menu" in small caps
+        const menuText = toSmallCaps(' Menu');
         menuOptions += `*┋ ⬡ ${optionNumber} ${displayName}${menuText}*\n`;
         optionNumber++;
     });
@@ -66,47 +63,27 @@ const commonContextInfo = (sender) => ({
 
 // Function to validate media URL and determine type
 const getMediaType = (url) => {
-    if (!url || typeof url !== 'string' || url.trim() === '') {
-        return null;
-    }
-    
+    if (!url || typeof url !== 'string' || url.trim() === '') return null;
     const urlLower = url.toLowerCase();
-    
-    // Check image extensions
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-    if (imageExtensions.some(ext => urlLower.endsWith(ext))) {
-        return 'image';
-    }
-    
-    // Check video extensions
+    if (imageExtensions.some(ext => urlLower.endsWith(ext))) return 'image';
     const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.gif'];
-    if (videoExtensions.some(ext => urlLower.endsWith(ext))) {
-        return 'video';
-    }
-    
+    if (videoExtensions.some(ext => urlLower.endsWith(ext))) return 'video';
     return null;
 };
 
 // Get all categories and organize them
 const getCategorizedCommands = () => {
     let totalCommands = Object.keys(commands).length;
-    
-    // Get all unique categories and filter out undefined/null categories
     const categories = [...new Set(Object.values(commands).map(c => c.category))].filter(cat => 
         cat && cat.trim() !== '' && cat !== 'undefined'
     );
-    
-    // Organize commands by category and filter out empty categories
     const categorized = {};
     categories.forEach(cat => {
         const categoryCommands = Object.values(commands).filter(c => c.category === cat);
-        // Only add category if it has valid commands
         const validCommands = categoryCommands.filter(cmd => cmd.pattern && cmd.pattern.trim() !== '');
-        if (validCommands.length > 0) {
-            categorized[cat] = validCommands;
-        }
+        if (validCommands.length > 0) categorized[cat] = validCommands;
     });
-
     return { categorized, totalCommands };
 };
 
@@ -120,12 +97,9 @@ cmd({
 },
 async (conn, mek, m, { from, sender, pushname, reply }) => {
     try {
-        // Show typing presence before processing
         await conn.sendPresenceUpdate('composing', from);
         
         const { categorized, totalCommands } = getCategorizedCommands();
-        
-        // Create menu options from ALL available categories
         const availableCategories = Object.keys(categorized);
         const menuOptions = formatMenuOptions(availableCategories);
 
@@ -142,32 +116,21 @@ ${menuOptions}*╰───────────────────⊷*
 
 > *ʀᴇᴘʟʏ ᴡɪᴛʜ ᴛʜᴇ ɴᴜᴍʙᴇʀ ᴛᴏ sᴇʟᴇᴄᴛ ᴍᴇɴᴜ (1-${availableCategories.length})*`;
 
-        // Determine which media to use for main menu
         let mainMenuMedia;
         const localImagePath = path.join(__dirname, '../lib/khanmd.jpg');
-        
-        // First check if config has valid media URL
         const mediaType = getMediaType(config.BOT_MEDIA_URL);
         
         if (mediaType === 'image' || mediaType === 'video') {
             try {
-                // Check if server is accessible (timeout after 3 seconds)
                 await axios.head(config.BOT_MEDIA_URL, { timeout: 3000 });
-                // Server is up, use the URL media
-                mainMenuMedia = { 
-                    [mediaType]: { url: config.BOT_MEDIA_URL } 
-                };
+                mainMenuMedia = { [mediaType]: { url: config.BOT_MEDIA_URL } };
             } catch (serverError) {
-                // Server is down or inaccessible, use local image
-                console.log('Media server down, using local image:', serverError.message);
                 mainMenuMedia = { image: { url: localImagePath } };
             }
         } else {
-            // Invalid media URL format, use local image
             mainMenuMedia = { image: { url: localImagePath } };
         }
 
-        // Send menu with media
         const sentMsg = await conn.sendMessage(from, {
             ...mainMenuMedia,
             caption: caption,
@@ -175,8 +138,9 @@ ${menuOptions}*╰───────────────────⊷*
         }, { quoted: mek });
 
         const messageID = sentMsg.key.id;
-
-        conn.ev.on("messages.upsert", async (msgData) => {
+        
+        // Create listener function
+        const menuListener = async (msgData) => {
             const receivedMsg = msgData.messages[0];
             if (!receivedMsg.message) return;
 
@@ -185,19 +149,17 @@ ${menuOptions}*╰───────────────────⊷*
             const isReplyToBot = receivedMsg.message.extendedTextMessage?.contextInfo?.stanzaId === messageID;
 
             if (isReplyToBot) {
-                await conn.sendMessage(senderID, {
-                    react: { text: '⬇️', key: receivedMsg.key }
-                });
+                // Close event immediately
+                conn.ev.off("messages.upsert", menuListener);
+                
+                await conn.sendMessage(senderID, { react: { text: '⬇️', key: receivedMsg.key } });
 
                 const selectedNumber = parseInt(receivedText);
                 if (selectedNumber >= 1 && selectedNumber <= availableCategories.length) {
                     const selectedCategory = availableCategories[selectedNumber - 1];
                     const categoryCommands = categorized[selectedCategory];
-                    
-                    // Capitalize first letter for display
                     const displayName = selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1);
                     
-                    // Build category menu with same style as menu2
                     const categorySection = formatCategory(selectedCategory, categoryCommands);
                     
                     let categoryMenu = `*╭┈───〔 ${displayName} Menu 〕┈───⊷*\n`;
@@ -207,27 +169,17 @@ ${menuOptions}*╰───────────────────⊷*
                     categoryMenu += `${categorySection}\n\n`;
                     categoryMenu += `> *ᴜsᴇ ${config.PREFIX}ᴍᴇɴᴜ ᴛᴏ sᴇᴇ ᴀʟʟ ᴍᴇɴᴜs ᴀɢᴀɪɴ*`;
 
-                    // Determine which media to use for category menu
                     let categoryMedia;
-                    
-                    // First check if config has valid media URL for category menu too
                     const categoryMediaType = getMediaType(config.BOT_MEDIA_URL);
                     
                     if (categoryMediaType === 'image' || categoryMediaType === 'video') {
                         try {
-                            // Check if server is accessible (timeout after 3 seconds)
                             await axios.head(config.BOT_MEDIA_URL, { timeout: 3000 });
-                            // Server is up, use the URL media
-                            categoryMedia = { 
-                                [categoryMediaType]: { url: config.BOT_MEDIA_URL } 
-                            };
+                            categoryMedia = { [categoryMediaType]: { url: config.BOT_MEDIA_URL } };
                         } catch (serverError) {
-                            // Server is down or inaccessible, use local image
-                            console.log('Media server down for category menu, using local image:', serverError.message);
                             categoryMedia = { image: { url: localImagePath } };
                         }
                     } else {
-                        // Invalid media URL format, use local image
                         categoryMedia = { image: { url: localImagePath } };
                     }
 
@@ -243,7 +195,16 @@ ${menuOptions}*╰───────────────────⊷*
                     }, { quoted: receivedMsg });
                 }
             }
-        });
+        };
+        
+        // Add listener
+        conn.ev.on("messages.upsert", menuListener);
+        
+        // Auto cleanup after 15 seconds if no selection
+        setTimeout(() => {
+            conn.ev.off("messages.upsert", menuListener);
+            console.log('🧹 Menu listener cleaned up (timeout)');
+        }, 15000);
 
     } catch (e) {
         console.error(e);
