@@ -25,11 +25,11 @@ async (conn, mek, m, {
         // Send react immediately
         await conn.sendMessage(from, { react: { text: '⏳', key: m.key } });
         
-        // Wait 1000ms
+        // Wait 800ms
         await sleep(800);
         
-        // Send update message and wait for it to complete
-        const messageSent = await reply("*♻️ Updating and restarting the bot*...");
+        // Send update message
+        await reply("*♻️ Updating and restarting the bot*...");
         
         // Wait for message to be delivered
         await sleep(800);
@@ -37,12 +37,12 @@ async (conn, mek, m, {
         // Send ✅ react after message
         await conn.sendMessage(from, { react: { text: '✅', key: m.key } });
         
-        // Wait 3000ms to ensure everything is sent
+        // Wait 2000ms to ensure everything is sent
         await sleep(2000);
         
-        // Execute restart
-        const { exec } = require("child_process");
-        exec("pm2 restart all");
+        // Exit process - PM2 or your process manager will restart it
+        console.log("🔄 Bot restarting...");
+        process.exit(1);
         
     } catch (e) {
         console.log(e);
